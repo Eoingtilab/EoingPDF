@@ -1,0 +1,15 @@
+.venv*/
+.pytest_cache/
+__pycache__/
+*.pyc
+.env
+logs/
+backups/
+temp/
+outputs/
+exports/
+data/
+build/
+release/
+*.spec
+!packaging/EoingPDF.spec

@@ -1,0 +1,127 @@
+"""Per-user COM drop target registration. Explorer stays free of our code."""
+from pathlib import Path
+import ctypes
+import sys
+import winreg
+import json
+import os
+from datetime import datetime
+
+IDS = {
+    'merge': '{7EA027AD-393A-49DE-9F95-7DA2CB0D9481}',
+    'convert': '{7EA027AD-393A-49DE-9F95-7DA2CB0D9482}',
+    'summary': '{7EA027AD-393A-49DE-9F95-7DA2CB0D9483}',
+}
+LABELS = {'merge': '어잉PDF · 하나로 합치기', 'convert': '어잉PDF · PDF로 변환', 'summary': '어잉PDF · 핵심문장 요약'}
+BASE = r'Software\Classes\*\shell'
+LEGACY_NAMES = ('EoingPDFMerge', 'EoingPDFConvert', 'EoingPDFCompress', 'EoingPDFOcr',
+                'EoingPDFAiSummary', 'EoingPDFOpen', 'EoingPDFSplit10',
+                'EoingPDFCompress5', 'EoingPDFImagesToPDF')
+
+
+def set_value(path, name, value):
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, path) as key:
+        winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
+
+
+def install():
+    folder = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[2] / 'release/EoingPDF'
+    bridge = folder / 'EoingPDF.Shell.exe'
+    exe = folder / 'EoingPDF.exe'
+    if not bridge.is_file() or not exe.is_file():
+        raise ValueError('배포 폴더에 EoingPDF.exe와 EoingPDF.Shell.exe가 함께 있어야 합니다.')
+    for action, clsid in IDS.items():
+        set_value('Software\\Classes\\CLSID\\' + clsid, '', LABELS[action])
+        set_value('Software\\Classes\\CLSID\\' + clsid + r'\LocalServer32', '', f'"{bridge}" {action}')
+        set_value('Software\\Classes\\CLSID\\' + clsid + r'\LocalServer32', 'ServerExecutable', str(bridge))
+        key = BASE + '\\EoingPDF2.' + action
+        set_value(key, '', LABELS[action])
+        set_value(key, 'Icon', f'"{exe}",0')
+        set_value(key, 'MultiSelectModel', 'Player')
+        set_value(key + r'\DropTarget', 'CLSID', clsid)
+    remove_legacy_menus()
+    application = r'Software\Classes\Applications\EoingPDF.exe'
+    set_value(application, 'FriendlyAppName', '어잉PDF')
+    set_value(application + r'\SupportedTypes', '.pdf', '')
+    set_value(application + r'\shell\open\command', '', f'"{exe}" "%1"')
+    progid = r'Software\Classes\EoingPDF.Document'
+    set_value(progid, '', '어잉PDF 문서')
+    set_value(progid + r'\DefaultIcon', '', f'"{exe}",0')
+    set_value(progid + r'\shell\open\command', '', f'"{exe}" "%1"')
+    capabilities = r'Software\EoingPDF\Capabilities'
+    set_value(capabilities, 'ApplicationName', '어잉PDF')
+    set_value(capabilities, 'ApplicationDescription', 'PDF 보기, 페이지 삭제, 문서 변환과 병합')
+    set_value(capabilities + r'\FileAssociations', '.pdf', 'EoingPDF.Document')
+    set_value(r'Software\RegisteredApplications', 'EoingPDF', capabilities)
+    set_value(r'Software\Classes\.pdf\OpenWithProgids', 'EoingPDF.Document', '')
+    ctypes.windll.shell32.SHChangeNotify(0x08000000, 0, None, None)
+
+
+def delete_owned_tree(path):
+    # Only the fixed EoingPDF keys constructed here may be removed.
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path, 0, winreg.KEY_READ | winreg.KEY_WRITE) as key:
+            children = []
+            i = 0
+            while True:
+                try:
+                    children.append(winreg.EnumKey(key, i))
+                    i += 1
+                except OSError:
+                    break
+        for child in children:
+            delete_owned_tree(path + '\\' + child)
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, path)
+    except FileNotFoundError:
+        pass
+
+
+def uninstall():
+    delete_owned_tree(r'Software\Classes\Applications\EoingPDF.exe')
+    delete_owned_tree(r'Software\Classes\EoingPDF.Document')
+    delete_owned_tree(r'Software\EoingPDF\Capabilities')
+    for path, name in [(r'Software\RegisteredApplications', 'EoingPDF'),
+                       (r'Software\Classes\.pdf\OpenWithProgids', 'EoingPDF.Document')]:
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path, 0, winreg.KEY_SET_VALUE) as key:
+                winreg.DeleteValue(key, name)
+        except FileNotFoundError:
+            pass
+    for action, clsid in IDS.items():
+        delete_owned_tree(BASE + '\\EoingPDF2.' + action)
+        delete_owned_tree('Software\\Classes\\CLSID\\' + clsid)
+    remove_legacy_menus()
+    ctypes.windll.shell32.SHChangeNotify(0x08000000, 0, None, None)
+
+
+def open_default_settings():
+    # Windows owns UserChoice; ask the user through the documented Settings UI.
+    os.startfile('ms-settings:defaultapps?registeredAppUser=EoingPDF')
+
+
+def snapshot_key(path):
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path) as key:
+        subkeys, values, _ = winreg.QueryInfoKey(key)
+        data = [winreg.EnumValue(key, i) for i in range(values)]
+        children = {winreg.EnumKey(key, i): snapshot_key(path + '\\' + winreg.EnumKey(key, i)) for i in range(subkeys)}
+        return {'values': data, 'children': children}
+
+
+def remove_legacy_menus():
+    """Remove only the v1 keys whose names came from the previous project."""
+    from .convert import SUPPORTED
+    snapshots = {}
+    for ext in sorted(SUPPORTED | {'.odt', '.ods', '.odp', '.xps', '.oxps'}):
+        for name in LEGACY_NAMES:
+            path = rf'Software\Classes\SystemFileAssociations\{ext}\shell\{name}'
+            try:
+                snapshots[path] = snapshot_key(path)
+            except FileNotFoundError:
+                continue
+    if snapshots:
+        backup = Path(os.environ['LOCALAPPDATA']) / 'EoingPDF/backups'
+        backup.mkdir(parents=True, exist_ok=True)
+        target = backup / ('legacy-menu-' + datetime.now().strftime('%Y%m%d-%H%M%S-%f') + '.json')
+        target.write_text(json.dumps(snapshots, ensure_ascii=False, indent=2), encoding='utf-8')
+        for path in snapshots:
+            delete_owned_tree(path)
