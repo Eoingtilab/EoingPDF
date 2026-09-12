@@ -24,7 +24,7 @@ class PdfViewer(QDialog):
             self.count = document.page_count
         self.setWindowTitle(f'{self.path.name} · 어잉PDF')
         self.resize(960, 820)
-        self.setStyleSheet('QDialog {background:#f7f9fc;} QScrollArea {background:#e8edf5;border:0;}')
+        self.setStyleSheet('QDialog {background:#f7f9fc;} QScrollArea {background:#e8edf5;border:0;} QSpinBox, QComboBox {background:white;color:#263246;border:1px solid #dae2f0;border-radius:6px;padding:7px;min-width:75px;}')
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
         open_button = QPushButton('PDF 열기')
