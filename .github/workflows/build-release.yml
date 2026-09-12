@@ -29,6 +29,8 @@ jobs:
           .\.venv_d\Scripts\python.exe -m unittest discover -s tests -v
 
       - name: Build release
+        env:
+          EOING_SKIP_NATIVE: '1'
         run: .\build_release.ps1
 
       - name: Install Inno Setup
