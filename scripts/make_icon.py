@@ -1,12 +1,11 @@
-"""Create the small EoingPDF application mark from bundled typography."""
+"""Package supplied artwork as multi-resolution Windows icons."""
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageOps
 
 root = Path(__file__).resolve().parents[1]
-image = Image.new('RGBA', (256, 256), (0, 0, 0, 0))
-draw = ImageDraw.Draw(image)
-draw.rounded_rectangle((8, 8, 248, 248), radius=56, fill='#4b70ed')
-font = ImageFont.truetype(str(root / 'assets/fonts/Pretendard-Regular.ttf'), 218)
-draw.text((128, 119), 'e', font=font, anchor='mm', fill='white', stroke_width=2)
-image.save(root / 'assets/app_icon.png')
-image.save(root / 'assets/app_icon.ico', sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])
+for name in ('app_icon', 'pdf_icon'):
+    with Image.open(root / f'assets/{name}.png') as source:
+        artwork = ImageOps.contain(source.convert('RGBA'), (256, 256), Image.Resampling.LANCZOS)
+        image = Image.new('RGBA', (256, 256), (0, 0, 0, 0))
+        image.alpha_composite(artwork, ((256 - artwork.width) // 2, (256 - artwork.height) // 2))
+        image.save(root / f'assets/{name}.ico', sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])

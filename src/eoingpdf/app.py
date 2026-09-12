@@ -606,7 +606,9 @@ def main():
     font_id = QFontDatabase.addApplicationFont(str(ROOT / 'assets/fonts/Pretendard-Regular.ttf'))
     if font_id < 0:
         raise RuntimeError('Pretendard 폰트 파일을 찾을 수 없습니다.')
-    app.setFont(QFont('Pretendard', 10))
+    ui_font = QFont('Pretendard', 10)
+    ui_font.setHintingPreference(QFont.PreferNoHinting)
+    app.setFont(ui_font)
     app.setStyle('Fusion')
     app.setStyleSheet(STYLE)
     log_folder = Path(QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation)) / 'logs'

@@ -28,8 +28,11 @@ def install():
     folder = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[2] / 'release/EoingPDF'
     bridge = folder / 'EoingPDF.Shell.exe'
     exe = folder / 'EoingPDF.exe'
+    document_icon = folder / '_internal/assets/pdf_icon.ico'
     if not bridge.is_file() or not exe.is_file():
         raise ValueError('배포 폴더에 EoingPDF.exe와 EoingPDF.Shell.exe가 함께 있어야 합니다.')
+    if not document_icon.is_file():
+        raise ValueError('배포 폴더에 PDF 문서 아이콘이 없습니다. 전체 배포 폴더를 다시 풀어 주세요.')
     for action, clsid in IDS.items():
         set_value('Software\\Classes\\CLSID\\' + clsid, '', LABELS[action])
         set_value('Software\\Classes\\CLSID\\' + clsid + r'\LocalServer32', '', f'"{bridge}" {action}')
@@ -46,7 +49,7 @@ def install():
     set_value(application + r'\shell\open\command', '', f'"{exe}" "%1"')
     progid = r'Software\Classes\EoingPDF.Document'
     set_value(progid, '', '어잉PDF 문서')
-    set_value(progid + r'\DefaultIcon', '', f'"{exe}",0')
+    set_value(progid + r'\DefaultIcon', '', f'"{document_icon}",0')
     set_value(progid + r'\shell\open\command', '', f'"{exe}" "%1"')
     capabilities = r'Software\EoingPDF\Capabilities'
     set_value(capabilities, 'ApplicationName', '어잉PDF')
@@ -77,6 +80,15 @@ def delete_owned_tree(path):
 
 
 def uninstall():
+    folder = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[2] / 'release/EoingPDF'
+    expected = f'"{folder / "EoingPDF.exe"}" "%1"'
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Classes\EoingPDF.Document\shell\open\command') as key:
+            registered = winreg.QueryValueEx(key, '')[0]
+        if registered.casefold() != expected.casefold():
+            return  # A newer install or portable copy owns the shared registration.
+    except FileNotFoundError:
+        pass
     delete_owned_tree(r'Software\Classes\Applications\EoingPDF.exe')
     delete_owned_tree(r'Software\Classes\EoingPDF.Document')
     delete_owned_tree(r'Software\EoingPDF\Capabilities')
