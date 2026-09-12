@@ -99,8 +99,32 @@ slides.grab().save(str(root / 'slideshow.png'))
 QTest.keyClick(slides, Qt.Key_Escape)
 app.processEvents()
 assert not slides.isVisible() and window.page.value() == 3
+window.start_slideshow()
+app.processEvents()
+slides = window.slideshow
+window.start_slideshow()
+assert window.slideshow is slides
+QTest.mouseClick(slides.exit_button, Qt.LeftButton)
+app.processEvents()
+assert not slides.isVisible() and window.isVisible()
+window.start_slideshow()
+app.processEvents()
+QTest.keyClick(window.slideshow, Qt.Key_F5)
+app.processEvents()
+assert not window.slideshow.isVisible()
+window.showMaximized()
+app.processEvents()
+with patch('eoingpdf.viewer.QMessageBox.question', return_value=QMessageBox.Yes):
+    window.stage_delete({1})
+with patch('eoingpdf.viewer.QMessageBox.question', return_value=QMessageBox.Cancel) as question:
+    window.close_button.click()
+    assert question.call_count == 1 and window.isVisible()
+with patch('eoingpdf.viewer.QMessageBox.question', return_value=QMessageBox.Discard) as question:
+    window.close_button.click()
+    assert question.call_count == 1 and not window.isVisible()
 assert hashlib.sha256(source.read_bytes()).hexdigest() == before
 window.close()
 print('PASS: viewer rendering, navigation, zoom, UI deletion of middle page, original preserved, all-page deletion rejected')
 print('PASS: thumbnail click and X, cancel/confirm deletion, deferred save, cancelled save and close, draft slideshow mapping')
 print('PASS: fullscreen slideshow, current-page start, Space/arrows/mouse, boundaries, Home/End, Escape returns to page')
+print('PASS: fullscreen exit button/F5, no duplicate slideshow, maximized viewer close/cancel with one confirmation')

@@ -24,6 +24,7 @@ class PdfViewer(QDialog):
             self.count = document.page_count
         self.pages = list(range(self.count))
         self.dirty = False
+        self.slideshow = None
         self.setWindowTitle(f'{self.path.name} · 어잉PDF')
         self.resize(960, 820)
         self.setStyleSheet('QDialog {background:#f7f9fc;} QScrollArea {background:#e8edf5;border:0;} QListWidget {background:#eef2f8;border:0;color:#263246;} QListWidget::item:selected {background:#dbe6ff;border:2px solid #5176ec;border-radius:6px;} QSpinBox, QComboBox {background:white;color:#263246;border:1px solid #dae2f0;border-radius:6px;padding:7px;min-width:75px;}')
@@ -56,6 +57,9 @@ class PdfViewer(QDialog):
         bar.addWidget(self.next)
         bar.addStretch()
         bar.addWidget(self.zoom)
+        self.close_button = QPushButton('닫기')
+        self.close_button.clicked.connect(self.close)
+        bar.addWidget(self.close_button)
         layout.addLayout(bar)
         self.scroll = QScrollArea()
         self.scroll.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
@@ -95,11 +99,23 @@ class PdfViewer(QDialog):
         QShortcut(QKeySequence('Ctrl+S'), self).activated.connect(self.save_changes)
 
     def start_slideshow(self):
+        if self.slideshow is not None and self.slideshow.isVisible():
+            self.slideshow.raise_()
+            self.slideshow.activateWindow()
+            return
         self.slideshow = SlideShow(self.path, self.page.value() - 1, self, self.pages)
         self.slideshow.setWindowModality(Qt.WindowModal)
-        self.slideshow.finished.connect(lambda _: self.page.setValue(self.slideshow.index + 1))
+        slides = self.slideshow
+        slides.finished.connect(lambda _: self.finish_slideshow(slides))
         self.slideshow.showFullScreen()
+        self.slideshow.activateWindow()
         self.slideshow.setFocus()
+
+    def finish_slideshow(self, slides):
+        self.page.setValue(slides.index + 1)
+        self.raise_()
+        self.activateWindow()
+        self.page.setFocus()
 
     def reset_thumbnails(self):
         self.thumbnails.blockSignals(True)
@@ -245,11 +261,14 @@ class PdfViewer(QDialog):
         return answer == QMessageBox.Discard
 
     def reject(self):
-        if self.confirm_leave():
-            super().reject()
+        self.close()
 
     def closeEvent(self, event):
         if self.confirm_leave():
+            if self.slideshow is not None and self.slideshow.isVisible():
+                self.slideshow.reject()
+            self.thumbnail_timer.stop()
+            super().reject()
             event.accept()
         else:
             event.ignore()
@@ -298,6 +317,16 @@ class SlideShow(QDialog):
         self.setFocusPolicy(Qt.StrongFocus)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 8)
+        controls = QHBoxLayout()
+        controls.setContentsMargins(12, 8, 12, 0)
+        controls.addStretch()
+        self.exit_button = QPushButton('전체화면 종료 · Esc')
+        self.exit_button.setAutoDefault(False)
+        self.exit_button.setFocusPolicy(Qt.NoFocus)
+        self.exit_button.setStyleSheet('QPushButton {background:#263246;color:white;border:1px solid #64748b;border-radius:6px;padding:8px 16px;} QPushButton:hover {background:#405170;}')
+        self.exit_button.clicked.connect(self.reject)
+        controls.addWidget(self.exit_button)
+        layout.addLayout(controls)
         self.canvas = QLabel()
         self.canvas.setAlignment(Qt.AlignCenter)
         self.canvas.setMinimumSize(1, 1)
@@ -334,7 +363,7 @@ class SlideShow(QDialog):
 
     def keyPressEvent(self, event):
         key = event.key()
-        if key == Qt.Key_Escape:
+        if key in (Qt.Key_Escape, Qt.Key_F5):
             self.reject()
         elif key == Qt.Key_Space and event.modifiers() & Qt.ShiftModifier:
             self.advance(-1)
