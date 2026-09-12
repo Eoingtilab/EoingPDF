@@ -1,6 +1,8 @@
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 $releaseFolder = Join-Path $PSScriptRoot 'release\EoingPDF'
+$releaseFolder = Join-Path $PSScriptRoot 'release\EoingPDF'
+New-Item -ItemType Directory -Force -Path (Split-Path $releaseFolder -Parent) | Out-Null
 $running = Get-Process EoingPDF -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq (Join-Path $releaseFolder 'EoingPDF.exe') }
 if ($running) { throw '배포 폴더의 어잉PDF를 종료한 뒤 다시 빌드해 주세요.' }
 $pythonExe = Join-Path $PSScriptRoot '.venv_d\Scripts\python.exe'
