@@ -5,6 +5,8 @@
 ## 통과
 
 - `tests/viewer_smoke.py`: 독립 뷰어 렌더링·페이지 이동·150% 확대 및 UI의 중간 페이지 삭제. 3페이지 중 2번 삭제 후 1·3번 유지, 원본 SHA 동일, 전체 삭제 거부.
+- Windows 기본 앱 설정에서 어잉PDF 항목 및 `.pdf` 연결 선택을 확인. 현재 사용자 `FileExts/.pdf/UserChoice`의 ProgId가 `EoingPDF.Document`인 것을 확인했다.
+- 로그 파일 접근이 거부되는 환경에서도 임시 로그/무로그로 시작하도록 수정. 동일 환경에서 실제 `main.py PDF --screenshot` 뷰어 시작과 정상 종료를 확인했다.
 
 - `python -m unittest discover -s tests -v`: 14개 통과.
   - 페이지 추출 순서/중복, 잘못된 범위와 과도한 숫자, 선택 페이지 회전
