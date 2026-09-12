@@ -7,8 +7,10 @@ $pythonExe = Join-Path $PSScriptRoot '.venv_d\Scripts\python.exe'
 if (-not (Test-Path $pythonExe)) { $pythonExe = 'python' }
 & $pythonExe -m unittest discover -s tests -v
 if ($LASTEXITCODE -ne 0) { throw '테스트 실패' }
-& .\native\build_hwp.cmd
-if ($LASTEXITCODE -ne 0) { throw '한글 접근 모듈 빌드 실패' }
+if (-not $env:EOING_SKIP_NATIVE) {
+    & .\native\build_hwp.cmd
+    if ($LASTEXITCODE -ne 0) { throw '한글 접근 모듈 빌드 실패' }
+}
 & $pythonExe scripts\make_icon.py
 if ($LASTEXITCODE -ne 0) { throw '아이콘 생성 실패' }
 & $pythonExe -m PyInstaller --noconfirm --distpath build\staging --workpath build packaging\EoingPDF.spec
