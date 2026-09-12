@@ -610,14 +610,19 @@ def main():
     app.setStyle('Fusion')
     app.setStyleSheet(STYLE)
     log_folder = Path(QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation)) / 'logs'
+    from logging.handlers import RotatingFileHandler
     try:
         log_folder.mkdir(parents=True, exist_ok=True)
+        log_handler = RotatingFileHandler(log_folder / 'app.log', maxBytes=1048576, backupCount=2, encoding='utf-8')
     except OSError:
         import tempfile
         log_folder = Path(tempfile.gettempdir()) / 'EoingPDF-logs'
-        log_folder.mkdir(parents=True, exist_ok=True)
-    from logging.handlers import RotatingFileHandler
-    logging.basicConfig(handlers=[RotatingFileHandler(log_folder / 'app.log', maxBytes=1048576, backupCount=2, encoding='utf-8')], level=logging.INFO)
+        try:
+            log_folder.mkdir(parents=True, exist_ok=True)
+            log_handler = RotatingFileHandler(log_folder / 'app.log', maxBytes=1048576, backupCount=2, encoding='utf-8')
+        except OSError:
+            log_handler = logging.NullHandler()
+    logging.basicConfig(handlers=[log_handler], level=logging.INFO)
     if len(args.files) == 1 and Path(args.files[0]).suffix.lower() == '.pdf':
         from .viewer import PdfViewer
         try:
