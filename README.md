@@ -1,8 +1,8 @@
-# 어잉PDF 2.2.0
+# 어잉PDF 2.2.1
 
 **탐색기 우클릭으로 변환·병합·요약하고, 가볍게 열어보는 Windows PDF 유틸리티.**
 
-[릴리스 다운로드](https://github.com/Eoingtilab/EoingPDF/releases) · [무료 라이선스 발급](https://app.nal.la/?p=26818) · [변경 이력](CHANGELOG.md)
+[최신 Windows 설치파일 다운로드](https://github.com/Eoingtilab/EoingPDF/releases/latest/download/EoingPDF-Setup-x64.exe) · [전체 릴리스](https://github.com/Eoingtilab/EoingPDF/releases) · [무료 라이선스 발급](https://app.nal.la/?p=26818) · [변경 이력](CHANGELOG.md)
 
 | 항목 | 내용 |
 |---|---|

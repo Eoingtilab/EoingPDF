@@ -105,6 +105,7 @@ if (-not (Test-Path $iscc)) { throw 'Inno Setup 컴파일러가 없습니다. bu
 if ($LASTEXITCODE -ne 0) { throw '설치파일 컴파일 실패' }
 $installerPath = Join-Path $PSScriptRoot "release\EoingPDF-$version-Setup-x64.exe"
 if (-not (Test-Path $installerPath) -or (Get-Item $installerPath).Length -lt 1MB) { throw '설치파일 산출물이 없거나 너무 작습니다.' }
+Copy-Item -LiteralPath $installerPath -Destination (Join-Path $PSScriptRoot 'release\EoingPDF-Setup-x64.exe') -Force
 Copy-Item -LiteralPath packaging\install-silent.cmd -Destination release\install-silent.cmd
 Compress-Archive -Path release\EoingPDF -DestinationPath "release\EoingPDF-$version-portable.zip" -Force
 & $pythonExe scripts\package_source.py
