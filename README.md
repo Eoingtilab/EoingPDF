@@ -2,18 +2,19 @@
 
 **탐색기 우클릭으로 변환·병합·요약하고, 가볍게 열어보는 Windows PDF 유틸리티.**
 
-[최신 Windows 설치파일 다운로드](https://github.com/Eoingtilab/EoingPDF/releases/latest/download/EoingPDF-Setup-x64.exe) · [전체 릴리스](https://github.com/Eoingtilab/EoingPDF/releases) · [무료 라이선스 발급](https://app.nal.la/?p=26818) · [변경 이력](CHANGELOG.md)
+[Windows 설치파일 다운로드](https://github.com/Eoingtilab/nalapps-releases/releases/download/utility-eoingpdf-v2.2.2/EoingPDF-2.2.2-Setup-x64.exe) · [2.2.2 배포 릴리스](https://github.com/Eoingtilab/nalapps-releases/releases/tag/utility-eoingpdf-v2.2.2) · [무료 라이선스 발급](https://app.nal.la/?p=26818) · [변경 이력](CHANGELOG.md)
 
 | 항목 | 내용 |
 |---|---|
 | 운영체제 | Windows 10/11 x64 |
 | 배포 | 설치 EXE / 포터블 ZIP |
 | 사용 조건 | 무료 라이선스 활성화 필요 |
-| 라이선스/업데이트 | app.nal.la · EDD 상품 26818 (어잉PDF) |
+| 라이선스 | app.nal.la · EDD 상품 26818 (어잉PDF) |
+| 업데이트 | `Eoingtilab/nalapps-releases`의 `products/eoingpdf/latest.json` + GitHub Release 자산 |
 | 디자인 | Pretendard, 제공된 앱/문서 아이콘 |
 | 문서 처리 | 로컬 처리, 원본 보존 |
 
-GitHub 저장소와 릴리스가 비공개이면 접근 권한이 있는 계정으로 로그인해야 합니다.
+소스 저장소와 업데이트 배포 저장소는 분리되어 있습니다. 앱 업데이트는 공개 배포 저장소 `Eoingtilab/nalapps-releases`를 사용합니다.
 
 탐색기 우클릭으로 문서를 PDF로 바꾸고, 하나로 합치고, 핵심문장을 빠르게 꺼내는 Windows 포터블 유틸입니다.
 메인 앱을 먼저 열 필요가 없습니다. 파일은 외부로 전송하지 않고 원본도 수정하지 않습니다.
@@ -32,11 +33,11 @@ GitHub 저장소와 릴리스가 비공개이면 접근 권한이 있는 계정�
 설치 과정 또는 앱/뷰어의 **라이선스 설정**에서 키를 입력해 활성화하며, 비활성화 후 재활성화할 수 있습니다.
 최초 활성화에는 인터넷이 필요하며 이후에는 오프라인에서도 사용할 수 있습니다. 키는 PC에 암호화 저장하고 문서 내용은 서버로 보내지 않습니다.
 
-설치형은 `EoingPDF-2.2.0-Setup-x64.exe`를 실행합니다. 현재 사용자 폴더에 설치되며 시작 메뉴와 우클릭 메뉴, PDF 문서 아이콘을 등록합니다.
+설치형은 `EoingPDF-2.2.2-Setup-x64.exe`를 실행합니다. 현재 사용자 폴더에 설치되며 시작 메뉴와 우클릭 메뉴, PDF 문서 아이콘을 등록합니다.
 설치 마지막 화면에서 기본 PDF 앱 설정을 열 수 있습니다. 제거는 Windows 설정의 설치된 앱에서 **어잉PDF**를 선택합니다.
 아래는 포터블 사용 방법입니다.
 
-1. `release/EoingPDF-2.2.0-portable.zip`을 원하는 위치에 풉니다. 현재 2.2.0은 확장 기능 통합 검증 중인 개발 빌드입니다.
+1. 포터블 폴더 배포판을 사용할 경우 `release/EoingPDF-2.2.2-portable.zip`을 원하는 위치에 풉니다. 단일 실행 파일은 `EoingPDF-2.2.2-portable.exe`입니다.
 2. 폴더 안의 `install-context-menu.cmd`를 한 번 실행합니다. 관리자 권한은 필요하지 않습니다.
    Windows 기본 앱 설정이 열리면 `.pdf`에 **어잉PDF**를 선택합니다. 이후 PDF를 더블클릭하면 뷰어가 열립니다.
 3. 탐색기에서 파일을 선택하고 우클릭합니다. Windows 11에서는 **더 많은 옵션 표시**를 누릅니다.
@@ -265,22 +266,18 @@ PDF 더블클릭 또는 **PDF 열어보기**로 실행합니다. 왼쪽 작은 �
 - **설정 · 라이선스 · 업데이트 → 업데이트 → 지금 확인**에서 수동 확인을 시작하고 진행 상태를 볼 수 있습니다. 준비된 업데이트는 설정 창을 닫고 편집·작업을 마치면 적용합니다.
 - 우클릭 전용 작업은 처리 후 종료하며 자동 설치를 시작하지 않습니다.
 
-### EDD 운영자가 다음 버전을 배포하는 절차
+### 다음 버전을 배포하는 절차
 
 1. 저장소의 `VERSION`을 올리고 `CHANGELOG.md`를 작성합니다.
-2. 테스트 후 포터블과 설치 EXE를 빌드합니다.
-3. app.nal.la의 **어잉PDF 상품 26818**에 새 설치 EXE를 등록합니다.
-4. Software Licensing 버전 번호를 같은 새 번호로 설정합니다.
-5. `get_version` 응답에 `new_version`과 활성 키가 사용할 `download_link`가 있는지 확인합니다.
-6. 이전 버전에서 다운로드·설치·재시작을 검증한 뒤 배포합니다.
+2. 테스트 후 설치 EXE와 단일 실행 포터블 EXE를 빌드합니다.
+3. `Eoingtilab/nalapps-releases`에 `utility-eoingpdf-v{VERSION}` GitHub Release를 만들고 두 EXE를 업로드합니다.
+4. `products/eoingpdf/latest.json`에 최신 버전, 설치/포터블 다운로드 URL, 각각의 SHA-256을 기록합니다.
+5. 이전 버전에서 `지금 확인`을 실행해 새 버전 감지 → 다운로드 → SHA-256 검증 → 교체/설치 흐름을 확인합니다.
+6. app.nal.la의 EDD 상품 26818은 라이선스 활성화/권한 확인용으로 유지하며, 앱 업데이트 버전의 단일 기준으로 사용하지 않습니다.
 
-자동 설치 파일은 Windows 설치 EXE여야 합니다. 포터블 ZIP을 지정하면 설치 파일 검증에 실패합니다.
-현재 다운로드 허용 호스트는 `https://app.nal.la/`이며 다른 호스트로의 리디렉션은 허용하지 않습니다.
-CDN 등을 사용할 경우 신뢰할 호스트 정책을 코드와 함께 변경해야 합니다.
-서버는 새 버전 응답에 설치파일의 `sha256`(64자리 16진수)을 반드시 제공해야 합니다. 정보가 없거나 실제 파일과 다르면 자동 설치하지 않습니다. 다운로드 완료와 설치 실행 직전에 SHA-256을 검사합니다.
-연동 확인 당시 EDD 최신 버전 번호가 비어 있었습니다. 운영자가 버전과 설치 파일을 등록해야 실제 업데이트가 제공됩니다.
-
-연동 기준: [EDD Software Licensing API](https://easydigitaldownloads.com/docs/software-licensing-api/).
+업데이트 매니페스트는 `https://raw.githubusercontent.com/Eoingtilab/nalapps-releases/main/products/eoingpdf/latest.json`을 사용합니다.
+설치형은 `EoingPDF-{VERSION}-Setup-x64.exe`, 단일 실행 포터블은 `EoingPDF-{VERSION}-portable.exe`만 허용합니다.
+다운로드 URL은 `Eoingtilab/nalapps-releases`의 해당 릴리스 자산으로 제한하며, 다운로드 완료 후 SHA-256이 매니페스트와 일치하지 않으면 설치하지 않습니다.
 
 ## 저장 위치와 제거
 
@@ -309,7 +306,7 @@ Windows **설정 → 앱 → 설치된 앱 → 어잉PDF**에서 제거합니다
 
 **라이선스 확인이 실패해요.** 인터넷 연결, app.nal.la 접속 상태, 어잉PDF 상품용 키인지 확인하세요.
 
-**자동 업데이트가 안 떠요.** 현재 버전이 최신이거나 EDD 버전 번호가 아직 등록되지 않은 경우입니다.
+**자동 업데이트가 안 떠요.** `nalapps-releases`의 `products/eoingpdf/latest.json` 버전이 현재 버전보다 높은지 확인하세요. 네트워크 오류나 SHA-256 불일치가 있으면 업데이트를 중단합니다.
 
 ## 테스트 종류와 범위
 
@@ -343,7 +340,7 @@ Office/한글/OCR과 설치형은 환경 의존 테스트입니다. [검증 기�
 
 | 산출물 | 용도 |
 |---|---|
-| `EoingPDF-2.2.0-Setup-x64.exe` | 설치형 |
+| `EoingPDF-{VERSION}-Setup-x64.exe` | 설치형 |
 | `EoingPDF-{VERSION}-portable.zip` | 현재 VERSION을 파일명에 포함한 포터블 |
 | `EoingPDF-{VERSION}-portable.exe` | 파일 하나로 실행하는 포터블 (이름 변경 가능) |
 | `EoingPDF-{VERSION}-source.zip` | 명시적 목록으로 묶은 소스 |
@@ -354,7 +351,7 @@ Office/한글/OCR과 설치형은 환경 의존 테스트입니다. [검증 기�
 단일 EXE는 실행할 때 필요한 구성 요소를 임시 폴더에 풉니다. 우클릭 메뉴를 직접 등록하면
 작은 셸 도우미와 아이콘을 사용자 데이터 폴더에 보관하며, 등록을 해제하면 해당 파일을 정리합니다.
 파일을 이동하거나 이름을 바꾼 뒤에는 새 위치에서 메뉴를 다시 등록하세요.
-단일 EXE의 자동 교체·복원은 아직 구현 중이며 새 포터블 파일을 받아 수동으로 교체해야 합니다.
+단일 EXE도 업데이트 전 백업을 만들고 검증된 새 포터블 EXE로 자동 교체·복원할 수 있습니다.
 앱 아이콘 원본은 `assets/app_icon.png`, PDF 문서 아이콘 원본은 `assets/pdf_icon.png`입니다.
 빌드 때 비율과 투명도를 유지한 16~256px ICO를 생성합니다.
 
