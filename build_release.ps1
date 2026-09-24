@@ -113,3 +113,5 @@ if ($LASTEXITCODE -ne 0) { throw '소스 패키징 실패' }
 & $pythonExe tests\source_package_smoke.py
 if ($LASTEXITCODE -ne 0) { throw '소스 ZIP 검증 실패' }
 Get-FileHash "release\EoingPDF-$version-portable.zip" -Algorithm SHA256 | Format-List
+& $pythonExe scripts\prepare_nalapps_release.py
+if ($LASTEXITCODE -ne 0) { throw '?? ??? ????? ?? ??' }

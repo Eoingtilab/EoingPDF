@@ -876,5 +876,17 @@
   "한글 PDF 저장이 완료되지 않았습니다.": "Hancom PDF saving did not complete.",
   "한글의 자동 PDF 저장 기능을 실행하지 못했습니다.": "Hancom automatic PDF saving could not be executed.",
   "서버의 SHA-256 검증 정보가 올바르지 않습니다.": "The server SHA-256 verification value is invalid.",
-  "새 버전의 단일 EXE 다운로드가 아직 서버에 등록되지 않았습니다.": "The new portable EXE download has not been registered on the server yet."
+  "새 버전의 단일 EXE 다운로드가 아직 서버에 등록되지 않았습니다.": "The new portable EXE download has not been registered on the server yet.",
+  "업데이트 배포 정보 주소가 올바르지 않습니다.": "The update manifest URL is invalid.",
+  "업데이트 설치 파일의 GitHub 릴리스 주소를 확인해 주세요.": "Check the GitHub Release URL for the update installer.",
+  "업데이트 배포 정보를 확인할 수 없습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.": "Could not load update release information. Check your internet connection and try again.",
+  "업데이트 배포 정보가 너무 큽니다.": "The update release information is too large.",
+  "업데이트 배포 정보 형식이 올바르지 않습니다.": "The update release information format is invalid.",
+  "다른 제품의 업데이트 배포 정보입니다.": "The update release information belongs to another product.",
+  "릴리스에 올바른 SHA-256 검증 정보가 없습니다. 업데이트를 설치하지 않았습니다.": "The release does not contain a valid SHA-256 checksum. The update was not installed.",
+  "활성화된 라이선스가 있어야 업데이트를 확인할 수 있습니다.": "An activated license is required to check for updates.",
+  "릴리스 저장소의 버전 정보가 올바르지 않습니다.": "The release repository contains an invalid version.",
+  "GitHub 릴리스가 아닌 주소로 이동되어 업데이트를 중단했습니다.": "The update was stopped because the download redirected outside GitHub Releases.",
+  "업데이트 파일 검증 정보가 없습니다.": "Update file verification information is missing.",
+  "최신 배포 버전: {version}": "Latest release version: {version}"
 }

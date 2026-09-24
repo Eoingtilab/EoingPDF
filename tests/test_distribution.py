@@ -105,14 +105,24 @@ def test_single_file_version_is_embedded_and_never_backs_up_neighbor_files(porta
     assert (executable.parent / 'VERSION').read_text() == '99.0.0'
 
 
-def test_single_file_does_not_fall_back_to_folder_installer(portable, monkeypatch):
+def test_single_file_uses_portable_asset_from_public_release_manifest(portable, monkeypatch):
     from unittest.mock import Mock
-    from eoingpdf.licensing import LicenseError
     (portable[0] / 'VERSION').write_text('2.2.0')
-    monkeypatch.setattr(updates, 'store', lambda: Mock(data={'key': 'test', 'device': 'test'}))
-    response = dict(new_version='2.3.0', download_link='https://app.nal.la/setup.exe', sha256='a'*64)
-    monkeypatch.setattr(updates, 'request', lambda *args: response)
-    with pytest.raises(LicenseError, match='단일 EXE'):
-        updates.update_info('2.2.0')
-    response.update(portable_download_link='https://app.nal.la/portable.exe', portable_sha256='b'*64)
-    assert updates.update_info('2.2.0') == dict(version='2.3.0', url=response['portable_download_link'], sha256='b'*64)
+    state = Mock()
+    state.valid_session.return_value = True
+    monkeypatch.setattr(updates, 'store', lambda: state)
+    manifest = dict(
+        productId='eoingpdf',
+        version='2.3.0',
+        downloadUrl='https://github.com/Eoingtilab/nalapps-releases/releases/download/utility-eoingpdf-v2.3.0/EoingPDF-2.3.0-Setup-x64.exe',
+        sha256='a'*64,
+        portableDownloadUrl='https://github.com/Eoingtilab/nalapps-releases/releases/download/utility-eoingpdf-v2.3.0/EoingPDF-2.3.0-portable.exe',
+        portableSha256='b'*64,
+    )
+    monkeypatch.setattr(updates, 'fetch_release_manifest', lambda: manifest)
+    assert updates.update_info('2.2.0') == dict(
+        version='2.3.0',
+        url=manifest['portableDownloadUrl'],
+        sha256='b'*64,
+        kind='portable',
+    )

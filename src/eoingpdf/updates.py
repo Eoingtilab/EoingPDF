@@ -1,6 +1,7 @@
 """EDD updates: check and download off the UI thread, install only when idle."""
 from .localization import tr
 import hashlib
+import json
 import os
 import queue
 import re
@@ -12,7 +13,20 @@ import shutil
 from pathlib import Path
 from urllib.parse import urlsplit
 from urllib.request import Request, build_opener
-from .licensing import store, request, NoRedirect, LicenseError
+from urllib.error import URLError
+from .licensing import store, LicenseError
+
+
+UPDATE_PRODUCT_ID = 'eoingpdf'
+UPDATE_MANIFEST_URL = (
+    'https://raw.githubusercontent.com/Eoingtilab/nalapps-releases/'
+    'main/products/eoingpdf/latest.json'
+)
+UPDATE_RELEASE_REPO = 'Eoingtilab/nalapps-releases'
+UPDATE_RELEASE_TAG_PREFIX = 'utility-eoingpdf-v'
+UPDATE_MANIFEST_MAX_BYTES = 64 * 1024
+UPDATE_ASSET_MAX_BYTES = 200 * 1024 * 1024
+
 
 
 def backup_current_install(install_dir=None):
@@ -99,43 +113,96 @@ def current_version():
     return (root / 'VERSION').read_text(encoding='utf-8-sig').strip()
 
 
-def validated_download(info):
-    link = info.get('url')
+def _validate_manifest_origin(url):
     try:
-        if not isinstance(link, str) or any(ord(char) < 32 for char in link):
+        parsed = urlsplit(url)
+        if (parsed.scheme != 'https' or parsed.hostname != 'raw.githubusercontent.com'
+                or parsed.username or parsed.password or parsed.port not in (None, 443)
+                or parsed.fragment
+                or parsed.path != '/Eoingtilab/nalapps-releases/main/products/eoingpdf/latest.json'):
             raise ValueError()
-        parsed = urlsplit(link)
-        if (parsed.scheme != 'https' or parsed.hostname != 'app.nal.la' or
-                parsed.username or parsed.password or parsed.port not in (None, 443) or parsed.fragment):
+    except (TypeError, ValueError):
+        raise LicenseError(tr('업데이트 배포 정보 주소가 올바르지 않습니다.')) from None
+
+
+def _release_asset_url(url, version, portable=False):
+    try:
+        parsed = urlsplit(url)
+        expected_tag = UPDATE_RELEASE_TAG_PREFIX + version
+        expected_name = (
+            f'EoingPDF-{version}-portable.exe' if portable
+            else f'EoingPDF-{version}-Setup-x64.exe'
+        )
+        expected_path = f'/Eoingtilab/nalapps-releases/releases/download/{expected_tag}/{expected_name}'
+        if (parsed.scheme != 'https' or parsed.hostname != 'github.com'
+                or parsed.username or parsed.password or parsed.port not in (None, 443)
+                or parsed.fragment or parsed.query or parsed.path != expected_path):
             raise ValueError()
-    except ValueError:
-        raise ValueError(tr('업데이트 설치 파일의 서버 주소를 확인해 주세요.')) from None
+    except (TypeError, ValueError):
+        raise ValueError(tr('업데이트 설치 파일의 GitHub 릴리스 주소를 확인해 주세요.')) from None
+    return url
+
+
+def fetch_release_manifest(opener=None):
+    _validate_manifest_origin(UPDATE_MANIFEST_URL)
+    opener = opener or build_opener()
+    request = Request(
+        UPDATE_MANIFEST_URL,
+        headers={'User-Agent': f'EoingPDF/{current_version()}', 'Cache-Control': 'no-cache'},
+    )
+    try:
+        with opener.open(request, timeout=12) as response:
+            final_url = response.geturl() if hasattr(response, 'geturl') else UPDATE_MANIFEST_URL
+            _validate_manifest_origin(final_url)
+            payload = response.read(UPDATE_MANIFEST_MAX_BYTES + 1)
+    except LicenseError:
+        raise
+    except (URLError, OSError, ValueError):
+        raise LicenseError(tr('업데이트 배포 정보를 확인할 수 없습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.')) from None
+    if len(payload) > UPDATE_MANIFEST_MAX_BYTES:
+        raise LicenseError(tr('업데이트 배포 정보가 너무 큽니다.'))
+    try:
+        data = json.loads(payload.decode('utf-8'))
+    except (UnicodeDecodeError, ValueError):
+        raise LicenseError(tr('업데이트 배포 정보 형식이 올바르지 않습니다.')) from None
+    if not isinstance(data, dict) or data.get('productId') != UPDATE_PRODUCT_ID:
+        raise LicenseError(tr('다른 제품의 업데이트 배포 정보입니다.'))
+    return data
+
+
+def validated_download(info):
+    version = info.get('version')
+    portable = info.get('kind') == 'portable'
+    version_tuple(version)
+    link = _release_asset_url(info.get('url'), version, portable=portable)
     digest = info.get('sha256')
-    if digest in (None, ''):
-        digest = None
-    elif not isinstance(digest, str) or not re.fullmatch(r'[0-9a-fA-F]{64}', digest):
-        raise ValueError(tr('서버의 SHA-256 검증 정보가 올바르지 않습니다.'))
-    return link, digest.lower() if digest else None
+    if not isinstance(digest, str) or not re.fullmatch(r'[0-9a-fA-F]{64}', digest):
+        raise ValueError(tr('릴리스에 올바른 SHA-256 검증 정보가 없습니다. 업데이트를 설치하지 않았습니다.'))
+    return link, digest.lower()
 
 
 def update_info(current):
     state = store()
-    data = request('get_version', state.data['key'], state.data['device'])
-    newest = data.get('new_version')
-    if not newest:
-        raise LicenseError(tr('서버에서 사용 가능한 버전 정보를 받지 못했습니다. 상품의 업데이트 버전 설정을 확인해 주세요.'))
-    if version_tuple(newest) <= version_tuple(current):
+    if not state.valid_session():
+        raise LicenseError(tr('활성화된 라이선스가 있어야 업데이트를 확인할 수 있습니다.'))
+    data = fetch_release_manifest()
+    newest = data.get('version')
+    try:
+        newest_tuple = version_tuple(newest)
+    except ValueError:
+        raise LicenseError(tr('릴리스 저장소의 버전 정보가 올바르지 않습니다.')) from None
+    if newest_tuple <= version_tuple(current):
         return None
     from .distribution import is_onefile
-    if is_onefile():
-        link, checksum = data.get('portable_download_link'), data.get('portable_sha256')
-        if not link:
-            raise LicenseError(tr('새 버전의 단일 EXE 다운로드가 아직 서버에 등록되지 않았습니다.'))
-    else:
-        link = data.get('download_link') or data.get('package')
-        raw_checksum = data.get('sha256')
-        checksum = None if raw_checksum in (None, '') else raw_checksum
-    info = {'version': newest, 'url': link, 'sha256': checksum}
+    portable = is_onefile()
+    link_key = 'portableDownloadUrl' if portable else 'downloadUrl'
+    hash_key = 'portableSha256' if portable else 'sha256'
+    info = {
+        'version': newest,
+        'url': data.get(link_key),
+        'sha256': data.get(hash_key),
+        'kind': 'portable' if portable else 'installer',
+    }
     try:
         validated_download(info)
     except ValueError as error:
@@ -154,10 +221,17 @@ def download(info):
     deadline = time.monotonic() + 300
     try:
         with os.fdopen(fd, 'wb') as output:
-            with build_opener(NoRedirect()).open(Request(link, headers={'User-Agent': 'EoingPDF'}), timeout=12) as response:
+            with build_opener().open(Request(link, headers={'User-Agent': f'EoingPDF/{current_version()}'}), timeout=20) as response:
+                final_url = response.geturl() if hasattr(response, 'geturl') else link
+                final = urlsplit(final_url)
+                if (final.scheme != 'https'
+                        or final.hostname not in {'release-assets.githubusercontent.com', 'github.com'}
+                        or final.username or final.password or final.port not in (None, 443)
+                        or final.fragment):
+                    raise ValueError(tr('GitHub 릴리스가 아닌 주소로 이동되어 업데이트를 중단했습니다.'))
                 while chunk := response.read(65536):
                     size += len(chunk)
-                    if size > 200 * 1024 * 1024 or time.monotonic() > deadline:
+                    if size > UPDATE_ASSET_MAX_BYTES or time.monotonic() > deadline:
                         raise ValueError(tr('업데이트 다운로드 제한을 초과했습니다.'))
                     output.write(chunk)
                     digest.update(chunk)
@@ -165,9 +239,8 @@ def download(info):
             if downloaded.read(2) != b'MZ' or size < 1024:
                 raise ValueError(tr('Windows 설치 파일이 아닙니다.'))
         actual_digest = digest.hexdigest()
-        if expected_digest and actual_digest != expected_digest:
+        if actual_digest != expected_digest:
             raise ValueError(tr('업데이트 파일 검증에 실패했습니다.'))
-        info['sha256'] = actual_digest
         os.replace(temporary, target)
         return target
     finally:
@@ -176,7 +249,7 @@ def download(info):
 
 def verify_installer(path, expected_digest):
     if not isinstance(expected_digest, str) or not re.fullmatch(r'[0-9a-fA-F]{64}', expected_digest):
-        raise ValueError(tr('업데이트 검증 정보가 없습니다.'))
+        raise ValueError(tr('업데이트 파일 검증 정보가 없습니다.'))
     digest = hashlib.sha256()
     size = 0
     with open(path, 'rb') as source:
@@ -185,12 +258,11 @@ def verify_installer(path, expected_digest):
         source.seek(0)
         for chunk in iter(lambda: source.read(65536), b''):
             size += len(chunk)
-            if size > 200 * 1024 * 1024:
+            if size > UPDATE_ASSET_MAX_BYTES:
                 raise ValueError(tr('업데이트 파일 크기 제한을 초과했습니다.'))
             digest.update(chunk)
     if size < 1024 or digest.hexdigest() != expected_digest.lower():
         raise ValueError(tr('업데이트 파일이 변경되었거나 검증에 실패했습니다.'))
-
 
 def busy_window(window):
     from PySide6.QtWidgets import QApplication
@@ -215,6 +287,7 @@ class AutoUpdater:
         self.pending = None
         self.pending_digest = None
         self.pending_backup = None
+        self.latest_version = None
         self.message = tr('자동 업데이트를 확인하고 있습니다.')
         self.running = False
         self.timer = QTimer(app)
@@ -238,7 +311,8 @@ class AutoUpdater:
                 message = (tr('업데이트 파일과 복구 백업이 준비되었습니다.') if path else
                            tr('현재 버전보다 새로운 업데이트가 없습니다.'))
                 self.results.put((path, message, info['sha256'] if info else None,
-                                  info['version'] if info else None, backup))
+                                  info['version'] if info else None, backup,
+                                  info['version'] if info else current_version()))
             except LicenseError as error:
                 self.results.put((None, str(error), None))
             except Exception:
@@ -251,6 +325,7 @@ class AutoUpdater:
             self.pending, self.message, self.pending_digest = result[:3]
             self.pending_version = result[3] if len(result) > 3 else None
             self.pending_backup = result[4] if len(result) > 4 else None
+            self.latest_version = result[5] if len(result) > 5 else self.latest_version
             self.running = False
         except queue.Empty:
             pass
