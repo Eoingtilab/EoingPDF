@@ -1,0 +1,6 @@
+# Isolated model preparation and evaluation; not yet a production dependency set.
+onnx==1.22.0
+onnxruntime==1.30.0
+tokenizers==0.23.2
+safetensors==0.8.0
+psutil==7.2.2

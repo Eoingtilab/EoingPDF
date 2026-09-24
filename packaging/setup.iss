@@ -1,4 +1,4 @@
-#define AppVersion Trim(FileRead(FileOpen(AddBackslash(SourcePath) + "..\VERSION")))
+﻿#define AppVersion Trim(FileRead(FileOpen(AddBackslash(SourcePath) + "..\VERSION")))
 
 [Setup]
 AppId={{2F0A1255-6F4C-44E4-9088-35393E2E0B35}
@@ -38,9 +38,23 @@ Name: "{group}\어잉PDF"; Filename: "{app}\EoingPDF.exe"
 Name: "{autodesktop}\어잉PDF"; Filename: "{app}\EoingPDF.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\EoingPDF.exe"; Parameters: "--register-shell"; Flags: runhidden waituntilterminated
-Filename: "ms-settings:defaultapps?registeredAppUser=EoingPDF"; Description: "기본 PDF 앱 설정 열기"; Flags: shellexec postinstall skipifsilent unchecked
-Filename: "{app}\EoingPDF.exe"; Description: "어잉PDF 실행"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\EoingPDF.exe"; Parameters: "--license"; Description: "라이선스 입력 및 활성화"; Flags: waituntilterminated skipifsilent; Check: (not IsAutoUpdate) and ShellRegistrationSucceeded
+Filename: "ms-settings:defaultapps?registeredAppUser=EoingPDF"; Description: "기본 PDF 앱 설정 열기"; Flags: shellexec postinstall skipifsilent unchecked; Check: ShellRegistrationSucceeded
+Filename: "{app}\EoingPDF.exe"; Description: "어잉PDF 실행"; Flags: nowait postinstall skipifsilent; Check: ShellRegistrationSucceeded
+Filename: "{app}\EoingPDF.exe"; Flags: nowait; Check: IsAutoUpdate and (not IsHelperManaged) and ShellRegistrationSucceeded
 
 [UninstallRun]
 Filename: "{app}\EoingPDF.exe"; Parameters: "--uninstall-menu"; Flags: runhidden waituntilterminated; RunOnceId: "UnregisterShell"
+
+[Code]
+#include "shell_registration.iss"
+
+function IsAutoUpdate: Boolean;
+begin
+  Result := ExpandConstant('{param:AUTOUPDATE|0}') = '1';
+end;
+
+function IsHelperManaged: Boolean;
+begin
+  Result := ExpandConstant('{param:HELPERMANAGED|0}') = '1';
+end;

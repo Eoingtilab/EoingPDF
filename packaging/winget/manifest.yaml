@@ -1,0 +1,32 @@
+# 어잉PDF winget 제출용 템플릿
+# 실제 제출 전에 InstallerUrl과 InstallerSha256을 릴리스 파일에 맞춰 갱신합니다.
+PackageIdentifier: Eoingtilab.EoingPDF
+PackageVersion: 2.2.0
+PackageLocale: ko-KR
+Publisher: Eoingtilab
+PublisherUrl: https://app.nal.la/
+PackageName: 어잉PDF
+PackageUrl: https://github.com/Eoingtilab/EoingPDF
+License: Freeware
+ShortDescription: 빠르고 가벼운 PDF 보기, 병합, 변환 유틸리티
+Description: 우클릭으로 PDF 병합·변환·요약을 실행하고, 페이지 미리보기와 삭제를 제공하는 Windows PDF 유틸리티입니다.
+Tags:
+  - pdf
+  - document
+  - converter
+  - korean
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
+---
+PackageIdentifier: Eoingtilab.EoingPDF
+PackageVersion: 2.2.0
+InstallerType: exe
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/Eoingtilab/EoingPDF/releases/download/v2.2.0/EoingPDF-2.2.0-Setup-x64.exe
+    InstallerSha256: REPLACE_WITH_64_HEX_SHA256
+    InstallerSwitches:
+      Silent: /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+      SilentWithProgress: /SILENT /SUPPRESSMSGBOXES /NORESTART
+ManifestType: installer
+ManifestVersion: 1.6.0

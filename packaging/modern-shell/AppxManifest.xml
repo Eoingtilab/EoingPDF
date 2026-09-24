@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+ xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+ xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+ xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+ xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+ xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+ xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
+ IgnorableNamespaces="uap uap10 rescap com desktop4 desktop5">
+  <Identity Name="Eoingtilab.EoingPDF.Shell" Publisher="CN=Eoingtilab" Version="2.2.0.0" ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>어잉PDF</DisplayName>
+    <PublisherDisplayName>Eoingtilab</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+  <Resources><Resource Language="ko-KR" /><Resource Language="en-US" /><Resource Language="ja-JP" /></Resources>
+  <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" /></Dependencies>
+  <Applications>
+    <Application Id="EoingPDF" Executable="EoingPDF.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements AppListEntry="none" DisplayName="어잉PDF" Description="어잉PDF 문서 도구"
+        BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer><com:SurrogateServer DisplayName="EoingPDF document commands">
+            <com:Class Id="71BC7F3A-9D38-4AD1-B76C-9B3E1EA45001" Path="EoingPDF.Explorer.dll" ThreadingModel="STA" />
+            <com:Class Id="71BC7F3A-9D38-4AD1-B76C-9B3E1EA45002" Path="EoingPDF.Explorer.dll" ThreadingModel="STA" />
+            <com:Class Id="71BC7F3A-9D38-4AD1-B76C-9B3E1EA45003" Path="EoingPDF.Explorer.dll" ThreadingModel="STA" />
+          </com:SurrogateServer></com:ComServer>
+        </com:Extension>
+        <desktop4:Extension Category="windows.fileExplorerContextMenus">
+          <desktop4:FileExplorerContextMenus><desktop5:ItemType Type="*">
+            <desktop5:Verb Id="EoingPDFMerge" Clsid="71BC7F3A-9D38-4AD1-B76C-9B3E1EA45001" />
+            <desktop5:Verb Id="EoingPDFConvert" Clsid="71BC7F3A-9D38-4AD1-B76C-9B3E1EA45002" />
+            <desktop5:Verb Id="EoingPDFSummary" Clsid="71BC7F3A-9D38-4AD1-B76C-9B3E1EA45003" />
+          </desktop5:ItemType></desktop4:FileExplorerContextMenus>
+        </desktop4:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities><rescap:Capability Name="runFullTrust" /><rescap:Capability Name="unvirtualizedResources" /></Capabilities>
+</Package>

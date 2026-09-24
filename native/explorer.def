@@ -1,0 +1,4 @@
+LIBRARY EoingPDF.Explorer.dll
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

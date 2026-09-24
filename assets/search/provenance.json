@@ -1,0 +1,11 @@
+{
+  "source": "sentence-transformers/static-similarity-mrl-multilingual-v1",
+  "revision": "b68f4122911bcffcd6e1f695f2d99cd6788972d8",
+  "license": "Apache-2.0",
+  "dimensions": 256,
+  "quantization": "per-token symmetric int8",
+  "model_sha256": "18cc61ddb009c027742870cb501a3b56dab1c514814a985fc4570b07f26cdee1",
+  "tokenizer_sha256": "11aaf894a4ccf3d95e8830e27c0f8152791fbbff2b988e29a265580b86edd216",
+  "status": "evaluation-only",
+  "weights_sha256": "9799f4dde06830548c00d19ca7f93601f2e687cc8e905592c9cdb6b70635eaf3"
+}

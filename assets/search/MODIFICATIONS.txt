@@ -1,0 +1,4 @@
+EoingPDF uses the first 256 Matryoshka dimensions with per-token symmetric int8 quantization.
+The ONNX graph gathers tokens, dequantizes, averages and normalizes locally.
+Source revision and file hashes are recorded in provenance.json.
+Retrieval quality remains under evaluation; consult docs/SEARCH_MODEL_EVALUATION.md.

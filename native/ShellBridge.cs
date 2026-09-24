@@ -23,12 +23,14 @@ public interface IClassFactory {
 [ComVisible(true), ClassInterface(ClassInterfaceType.None)]
 public class DropTarget : IDropTarget {
     public static string Action;
+    public static string Executable;
     public static bool SelfTest;
     public static string[] Received;
     public int DragEnter(System.Runtime.InteropServices.ComTypes.IDataObject data, uint keys, long point, ref uint effect) { effect = 1; return 0; }
     public int DragOver(uint keys, long point, ref uint effect) { effect = 1; return 0; }
     public int DragLeave() { return 0; }
     public int Drop(System.Runtime.InteropServices.ComTypes.IDataObject data, uint keys, long point, ref uint effect) {
+        string manifest = null;
         try {
             var format = new FORMATETC { cfFormat = 15, dwAspect = DVASPECT.DVASPECT_CONTENT, lindex = -1, tymed = TYMED.TYMED_HGLOBAL };
             STGMEDIUM medium;
@@ -36,6 +38,7 @@ public class DropTarget : IDropTarget {
             var files = new List<string>();
             try {
                 uint count = Native.DragQueryFile(medium.unionmember, 0xffffffff, null, 0);
+                if (count > 1000) return unchecked((int)0x80070057);
                 for (uint i = 0; i < count; i++) {
                     uint size = Native.DragQueryFile(medium.unionmember, i, null, 0);
                     var buffer = new StringBuilder((int)size + 1);
@@ -46,21 +49,34 @@ public class DropTarget : IDropTarget {
             if (files.Count == 0) return unchecked((int)0x80070057);
             Received = files.ToArray();
             if (!SelfTest) {
-                string root = AppDomain.CurrentDomain.BaseDirectory;
+                foreach (string file in files) {
+                    if (!Path.IsPathRooted(file) || file.IndexOfAny(new char[] {'\r', '\n'}) >= 0 || !File.Exists(file))
+                        throw new ArgumentException("The selection contains an invalid file.");
+                }
+                string contents = String.Join("\n", files.ToArray()) + "\n";
+                byte[] encoded = new UTF8Encoding(false, true).GetBytes(contents);
+                if (encoded.Length > 2 * 1024 * 1024) throw new ArgumentException("The selection is too large.");
+                string exe = Executable ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "EoingPDF.exe");
+                if (!Path.IsPathRooted(exe) || !File.Exists(exe)) throw new FileNotFoundException("EoingPDF executable not found.");
                 string queue = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EoingPDF", "queue");
                 Directory.CreateDirectory(queue);
-                string manifest = Path.Combine(queue, Guid.NewGuid().ToString("N") + ".files");
-                // Newlines cannot occur in Windows file names. UTF-8 preserves Korean paths.
-                File.WriteAllLines(manifest, files, new UTF8Encoding(false));
-                string exe = Path.Combine(root, "EoingPDF.exe");
+                string candidate = Path.Combine(queue, Guid.NewGuid().ToString("N") + ".files");
+                using (var stream = new FileStream(candidate, FileMode.CreateNew, FileAccess.Write, FileShare.None)) {
+                    manifest = candidate;
+                    stream.Write(encoded, 0, encoded.Length);
+                }
                 var start = new ProcessStartInfo(exe, "--quick " + Action + " --manifest \"" + manifest + "\"");
                 start.UseShellExecute = false;
                 start.CreateNoWindow = true;
-                Process.Start(start);
+                using (var process = Process.Start(start)) {
+                    if (process == null) throw new InvalidOperationException("EoingPDF did not start.");
+                }
+                manifest = null; // The receiving application now owns its queue file.
             }
             effect = 1;
             return 0;
         } catch (Exception error) {
+            if (manifest != null) { try { File.Delete(manifest); } catch (IOException) {} catch (UnauthorizedAccessException) {} }
             if (!SelfTest) MessageBox.Show("어잉PDF를 시작하지 못했습니다. 포터블 폴더 위치를 확인하고 우클릭 메뉴를 다시 등록해 주세요.\n" + error.Message);
             return Marshal.GetHRForException(error);
         } finally {
@@ -129,6 +145,14 @@ public class Program {
                 {"summary", "7EA027AD-393A-49DE-9F95-7DA2CB0D9483"}
             };
             if (!ids.ContainsKey(action)) return 2;
+            for (int index = 1; index < args.Length; index++) {
+                if (args[index] == "--app") {
+                    if (++index >= args.Length || !Path.IsPathRooted(args[index]) || !File.Exists(args[index])
+                        || !String.Equals(Path.GetExtension(args[index]), ".exe", StringComparison.OrdinalIgnoreCase)) return 2;
+                    DropTarget.Executable = Path.GetFullPath(args[index]);
+                } else if (!String.Equals(args[index], "-Embedding", StringComparison.OrdinalIgnoreCase)
+                           && !String.Equals(args[index], "/Embedding", StringComparison.OrdinalIgnoreCase)) return 2;
+            }
             DropTarget.Action = action;
             Guid clsid = new Guid(ids[action]);
             uint cookie;

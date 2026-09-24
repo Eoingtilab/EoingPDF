@@ -125,6 +125,12 @@ class EngineTests(unittest.TestCase):
         self.assertIn('생성형 AI 요약이 아니며', text)
         self.assertIn('protects original files', text)
 
+    def test_summary_limit_is_bounded(self):
+        with self.assertRaises(ValueError):
+            summarize(self.source, limit=0)
+        with self.assertRaises(ValueError):
+            summarize(self.source, limit=21)
+
     def test_partial_failure_is_explicit(self):
         bad = self.root / 'bad.pdf'
         bad.write_text('not a pdf')

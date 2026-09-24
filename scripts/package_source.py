@@ -1,12 +1,16 @@
 """Explicit source inventory: never include user documents, secrets or backups."""
 from pathlib import Path
 import zipfile
+import re
 
 root = Path(__file__).resolve().parents[1]
-target = root / 'release/EoingPDF-2.0-source.zip'
-folders = ('src', 'native', 'packaging', 'scripts', 'tests', 'docs', 'assets/fonts')
-files = ['main.py', 'README.md', 'ROADMAP.md', 'CHANGELOG.md', 'VERSION',
-         'requirements.txt', 'build_release.ps1', 'build_installer.ps1', 'install-context-menu.cmd',
+version = (root / 'VERSION').read_text(encoding='utf-8-sig').strip()
+if not re.fullmatch(r'\d+\.\d+\.\d+', version):
+    raise ValueError('VERSION 형식을 확인해 주세요.')
+target = root / f'release/EoingPDF-{version}-source.zip'
+folders = ('src', 'native', 'packaging', 'scripts', 'tests', 'docs', 'assets/fonts', 'assets/nalapps-sdk', 'assets/locales', 'assets/search')
+files = ['main.py', 'README.md', 'ROADMAP.md', 'CHANGELOG.md', 'VERSION', '.env.example',
+         'requirements.txt', 'requirements-dev.txt', 'pytest.ini', 'build_release.ps1', 'build_portable.ps1', 'build_installer.ps1', 'install-context-menu.cmd',
          'uninstall-context-menu.cmd', '.gitignore', 'assets/app_icon.png', 'assets/app_icon.ico',
          'assets/pdf_icon.png', 'assets/pdf_icon.ico']
 for folder in folders:

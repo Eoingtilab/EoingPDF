@@ -1,0 +1,6 @@
+{
+  "resource": "src/NalaApps.Wpf/Themes/NalaApps.DesignSystem.xaml",
+  "repository": "Eoingtilab/nalapps-windows-sdk",
+  "sha256": "b3b217e20ac55fbf3f84cc6c5d00948975c1b1abfb3908a5dbae3827cb2ddfb4",
+  "commit": "181fa2a1b8d6f96435563a9d175a9d9de227ccde"
+}

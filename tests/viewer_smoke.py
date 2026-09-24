@@ -12,6 +12,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from eoingpdf.viewer import PdfViewer, delete_pages
 from eoingpdf.convert import text_pdf, ROOT
+license_patch = patch('eoingpdf.license_ui.ensure_license', return_value=True)
+license_patch.start()  # UI-only tests; server behavior is covered separately.
 
 app = QApplication([])
 QFontDatabase.addApplicationFont(str(ROOT / 'assets/fonts/Pretendard-Regular.ttf'))
@@ -88,6 +90,7 @@ assert slides.index == 2
 QTest.keyClick(slides, Qt.Key_Left)
 assert slides.index == 1
 QTest.mouseClick(slides.canvas, Qt.LeftButton)
+QTest.qWait(app.styleHints().mouseDoubleClickInterval() + 40)
 assert slides.index == 2
 QTest.mouseClick(slides.canvas, Qt.RightButton)
 assert slides.index == 1

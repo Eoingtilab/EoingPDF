@@ -1,7 +1,7 @@
 """Per-user COM drop target registration. Explorer stays free of our code."""
+from .localization import tr
 from pathlib import Path
 import ctypes
-import sys
 import winreg
 import json
 import os
@@ -25,39 +25,66 @@ def set_value(path, name, value):
 
 
 def install():
-    folder = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[2] / 'release/EoingPDF'
-    bridge = folder / 'EoingPDF.Shell.exe'
-    exe = folder / 'EoingPDF.exe'
-    document_icon = folder / '_internal/assets/pdf_icon.ico'
+    from .distribution import shell_layout
+    layout = shell_layout(prepare=True)
+    bridge, exe, document_icon = layout.bridge, layout.executable, layout.icon
     if not bridge.is_file() or not exe.is_file():
-        raise ValueError('배포 폴더에 EoingPDF.exe와 EoingPDF.Shell.exe가 함께 있어야 합니다.')
+        raise ValueError(tr('배포 폴더에 EoingPDF.exe와 EoingPDF.Shell.exe가 함께 있어야 합니다.'))
     if not document_icon.is_file():
-        raise ValueError('배포 폴더에 PDF 문서 아이콘이 없습니다. 전체 배포 폴더를 다시 풀어 주세요.')
+        raise ValueError(tr('배포 폴더에 PDF 문서 아이콘이 없습니다. 전체 배포 폴더를 다시 풀어 주세요.'))
     for action, clsid in IDS.items():
-        set_value('Software\\Classes\\CLSID\\' + clsid, '', LABELS[action])
-        set_value('Software\\Classes\\CLSID\\' + clsid + r'\LocalServer32', '', f'"{bridge}" {action}')
+        set_value('Software\\Classes\\CLSID\\' + clsid, '', tr(LABELS[action]))
+        set_value('Software\\Classes\\CLSID\\' + clsid + r'\LocalServer32', '', layout.command(action))
         set_value('Software\\Classes\\CLSID\\' + clsid + r'\LocalServer32', 'ServerExecutable', str(bridge))
         key = BASE + '\\EoingPDF2.' + action
-        set_value(key, '', LABELS[action])
+        set_value(key, '', tr(LABELS[action]))
         set_value(key, 'Icon', f'"{exe}",0')
         set_value(key, 'MultiSelectModel', 'Player')
         set_value(key + r'\DropTarget', 'CLSID', clsid)
     remove_legacy_menus()
     application = r'Software\Classes\Applications\EoingPDF.exe'
-    set_value(application, 'FriendlyAppName', '어잉PDF')
+    set_value(application, 'FriendlyAppName', tr('어잉PDF'))
     set_value(application + r'\SupportedTypes', '.pdf', '')
     set_value(application + r'\shell\open\command', '', f'"{exe}" "%1"')
     progid = r'Software\Classes\EoingPDF.Document'
-    set_value(progid, '', '어잉PDF 문서')
+    set_value(progid, '', tr('어잉PDF 문서'))
     set_value(progid + r'\DefaultIcon', '', f'"{document_icon}",0')
     set_value(progid + r'\shell\open\command', '', f'"{exe}" "%1"')
     capabilities = r'Software\EoingPDF\Capabilities'
-    set_value(capabilities, 'ApplicationName', '어잉PDF')
-    set_value(capabilities, 'ApplicationDescription', 'PDF 보기, 페이지 삭제, 문서 변환과 병합')
+    set_value(capabilities, 'ApplicationName', tr('어잉PDF'))
+    set_value(capabilities, 'ApplicationDescription', tr('PDF 보기, 페이지 삭제, 문서 변환과 병합'))
     set_value(capabilities + r'\FileAssociations', '.pdf', 'EoingPDF.Document')
     set_value(r'Software\RegisteredApplications', 'EoingPDF', capabilities)
     set_value(r'Software\Classes\.pdf\OpenWithProgids', 'EoingPDF.Document', '')
     ctypes.windll.shell32.SHChangeNotify(0x08000000, 0, None, None)
+
+
+def registration_status(folder=None):
+    """Read-only check of the per-user registration owned by this install."""
+    from .distribution import shell_layout
+    layout = shell_layout(folder)
+    exe, folder = layout.executable, layout.executable.parent
+    expected = f'"{exe}" "%1"'
+    result = {'folder': str(folder), 'pdf_open': False, 'actions': {}, 'owner': '없음', 'ready': False}
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Classes\EoingPDF.Document\shell\open\command') as key:
+            command = winreg.QueryValueEx(key, '')[0]
+        result['pdf_open'] = command.casefold() == expected.casefold()
+        if command.casefold() != expected.casefold():
+            result['owner'] = command
+    except (FileNotFoundError, OSError):
+        pass
+    for action, clsid in IDS.items():
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, 'Software\\Classes\\CLSID\\' + clsid + r'\LocalServer32') as key:
+                command = winreg.QueryValueEx(key, '')[0]
+            result['actions'][action] = command.casefold() == layout.command(action).casefold()
+        except (FileNotFoundError, OSError):
+            result['actions'][action] = False
+    result['ready'] = result['pdf_open'] and all(result['actions'].values())
+    if result['ready']:
+        result['owner'] = '현재 설치본'
+    return result
 
 
 def delete_owned_tree(path):
@@ -80,8 +107,8 @@ def delete_owned_tree(path):
 
 
 def uninstall():
-    folder = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[2] / 'release/EoingPDF'
-    expected = f'"{folder / "EoingPDF.exe"}" "%1"'
+    from .distribution import shell_layout, cleanup_portable_shell
+    expected = f'"{shell_layout().executable}" "%1"'
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Classes\EoingPDF.Document\shell\open\command') as key:
             registered = winreg.QueryValueEx(key, '')[0]
@@ -104,6 +131,7 @@ def uninstall():
         delete_owned_tree('Software\\Classes\\CLSID\\' + clsid)
     remove_legacy_menus()
     ctypes.windll.shell32.SHChangeNotify(0x08000000, 0, None, None)
+    cleanup_portable_shell()
 
 
 def open_default_settings():

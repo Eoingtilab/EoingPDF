@@ -1,3 +1,4 @@
+from .localization import tr
 from pathlib import Path
 import shutil
 import tempfile
@@ -23,15 +24,15 @@ def publish(source, folder, name):
             target.unlink(missing_ok=True)
             raise
         return target
-    raise ValueError('다른 저장 폴더를 선택해 주세요.')
+    raise ValueError(tr('다른 저장 폴더를 선택해 주세요.'))
 
 
 def execute(action, files, folder=None, progress=lambda value, message: None, cancelled=lambda: False):
     paths = [Path(p).resolve() for p in files]
     if action not in {'merge', 'convert', 'summary'} or not paths:
-        raise ValueError('작업과 파일을 확인해 주세요.')
+        raise ValueError(tr('작업과 파일을 확인해 주세요.'))
     if any(not p.is_file() or p.suffix.lower() not in SUPPORTED for p in paths):
-        raise ValueError('지원하지 않거나 찾을 수 없는 파일이 포함되어 있습니다.')
+        raise ValueError(tr('지원하지 않거나 찾을 수 없는 파일이 포함되어 있습니다.'))
     outputs, errors = [], []
     with tempfile.TemporaryDirectory(prefix='eoingpdf-') as temporary:
         temp = Path(temporary)
@@ -51,12 +52,12 @@ def execute(action, files, folder=None, progress=lambda value, message: None, ca
                     to_pdf(path, result, cancelled)
                 converted.append(result)
                 if action == 'convert':
-                    outputs.append(publish(result, folder or path.parent, f'{path.stem}_변환.pdf'))
+                    outputs.append(publish(result, folder or path.parent, tr('{v0}_변환.pdf', v0=path.stem)))
                 elif action == 'summary':
                     text = summarize(result, cancelled)
                     draft = temp / f'{index}.txt'
-                    draft.write_text(f'어잉PDF · 핵심문장 요약\n출처: {path.name}\n\n{text}', encoding='utf-8-sig')
-                    outputs.append(publish(draft, folder or path.parent, f'{path.stem}_요약.txt'))
+                    draft.write_text(tr('어잉PDF · 핵심문장 요약\n출처: {v0}\n\n{v1}', v0=path.name, v1=text), encoding='utf-8-sig')
+                    outputs.append(publish(draft, folder or path.parent, tr('{v0}_요약.txt', v0=path.stem)))
             except Cancelled:
                 break
             except Exception as error:
@@ -67,7 +68,7 @@ def execute(action, files, folder=None, progress=lambda value, message: None, ca
         if action == 'merge' and not was_cancelled:
             try:
                 merged = run(Request('merge', tuple(str(p) for p in converted), str(temp)), lambda value, message: progress(80 + int(value * .2), message), cancelled)
-                outputs.append(publish(merged, folder or paths[0].parent, f'{paths[0].stem}_병합.pdf'))
+                outputs.append(publish(merged, folder or paths[0].parent, tr('{v0}_병합.pdf', v0=paths[0].stem)))
             except Cancelled:
                 was_cancelled = True
         return {'outputs': [str(p) for p in outputs], 'errors': errors, 'cancelled': was_cancelled}

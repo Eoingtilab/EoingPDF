@@ -3,6 +3,7 @@ os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 from pathlib import Path
 import sys
 import time
+from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFontDatabase, QFont
@@ -10,6 +11,8 @@ from eoingpdf.app import Window, STYLE, ROOT
 from eoingpdf.quick import QuickWindow
 from eoingpdf.convert import text_pdf
 import pymupdf as pdf
+license_patch = patch('eoingpdf.license_ui.ensure_license', return_value=True)
+license_patch.start()
 
 app = QApplication([])
 QFontDatabase.addApplicationFont(str(ROOT / 'assets/fonts/Pretendard-Regular.ttf'))

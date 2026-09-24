@@ -1,10 +1,12 @@
 """Native format conversion with isolated, time-limited Office automation."""
+from .localization import tr
 from pathlib import Path
 import json
 import os
 import subprocess
 import sys
 import time
+import tempfile
 import pymupdf as pdf
 from .core import IMAGES, Cancelled, open_pdf
 
@@ -16,7 +18,7 @@ ROOT = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parents[2]))
 
 def read_text(path):
     if path.stat().st_size > 20 * 1024 * 1024:
-        raise ValueError('텍스트 파일은 20MB 이하로 선택해 주세요.')
+        raise ValueError(tr('텍스트 파일은 20MB 이하로 선택해 주세요.'))
     raw = path.read_bytes()
     if raw.startswith((b'\xff\xfe', b'\xfe\xff')):
         return raw.decode('utf-16')
@@ -25,18 +27,18 @@ def read_text(path):
             return raw.decode(encoding)
         except UnicodeDecodeError:
             pass
-    raise ValueError('텍스트 인코딩을 읽을 수 없습니다. UTF-8로 저장한 뒤 다시 시도해 주세요.')
+    raise ValueError(tr('텍스트 인코딩을 읽을 수 없습니다. UTF-8로 저장한 뒤 다시 시도해 주세요.'))
 
 
 def text_pdf(text, target, cancelled=lambda: False):
-    font_path = ROOT / 'assets/fonts/Pretendard-Regular.ttf'
-    font = pdf.Font(fontfile=str(font_path))
+    from .pdf_fonts import text_font
+    font = text_font(text)
     with pdf.open() as doc:
         page = None
         y = 0
         for original in text.replace('\t', '    ').splitlines() or ['']:
             if cancelled():
-                raise Cancelled('작업을 취소했습니다.')
+                raise Cancelled(tr('작업을 취소했습니다.'))
             chunks, line, width = [], '', 0
             for char in original:
                 advance = font.text_length(char, fontsize=11)
@@ -49,7 +51,7 @@ def text_pdf(text, target, cancelled=lambda: False):
             for line in chunks:
                 if page is None or y > 790:
                     page = doc.new_page(width=595, height=842)
-                    page.insert_font(fontname='pretendard', fontfile=str(font_path))
+                    page.insert_font(fontname='pretendard', fontbuffer=font.buffer)
                     y = 52
                 page.insert_text((48, y), line, fontsize=11, fontname='pretendard', color=(.12, .16, .23))
                 y += 17
@@ -58,10 +60,28 @@ def text_pdf(text, target, cancelled=lambda: False):
 
 
 def to_pdf(source, target, cancelled=lambda: False, timeout=90):
+    """Validate a private conversion before publishing a new file atomically."""
+    source, target = Path(source).resolve(), Path(target).resolve()
+    if source == target or target.exists():
+        raise ValueError(tr('원본이나 기존 파일을 덮어쓸 수 없습니다. 다른 이름을 선택해 주세요.'))
+    if cancelled():
+        raise Cancelled(tr('작업을 취소했습니다.'))
+    with tempfile.TemporaryDirectory(prefix='.eoing-convert-', dir=target.parent) as temporary:
+        scratch = Path(temporary) / 'result.pdf'
+        _convert_to_pdf(source, scratch, cancelled, timeout)
+        if cancelled():
+            raise Cancelled(tr('작업을 취소했습니다.'))
+        if os.name == 'nt':
+            os.rename(scratch, target)
+        else:
+            os.link(scratch, target)
+
+
+def _convert_to_pdf(source, target, cancelled=lambda: False, timeout=90):
     source, target = Path(source), Path(target)
     ext = source.suffix.lower()
     if ext not in SUPPORTED:
-        raise ValueError(f'지원하지 않는 형식입니다: {ext}')
+        raise ValueError(tr('지원하지 않는 형식입니다: {v0}', v0=ext))
     if ext == '.pdf':
         with open_pdf(source) as doc:
             doc.save(target, garbage=4, deflate=True)
@@ -74,7 +94,7 @@ def to_pdf(source, target, cancelled=lambda: False, timeout=90):
         with pdf.open() as doc, Image.open(source) as image:
             for frame in ImageSequence.Iterator(image):
                 if cancelled():
-                    raise Cancelled('작업을 취소했습니다.')
+                    raise Cancelled(tr('작업을 취소했습니다.'))
                 corrected = ImageOps.exif_transpose(frame).convert('RGB')
                 stream = io.BytesIO()
                 corrected.save(stream, format='PNG')
@@ -93,6 +113,8 @@ def to_pdf(source, target, cancelled=lambda: False, timeout=90):
         from .hwp_guard import job_directory
         with job_directory() if ext in {'.hwp', '.hwpx'} else nullcontext(None) as directory:
             environment = os.environ.copy()
+            from .localization import current_locale
+            environment['EOINGPDF_LANGUAGE'] = current_locale()
             environment.pop('EOINGPDF_HWP_JOB', None)
             if directory:
                 environment['EOINGPDF_HWP_JOB'] = str(directory)
@@ -101,9 +123,9 @@ def to_pdf(source, target, cancelled=lambda: False, timeout=90):
             try:
                 while process.poll() is None:
                     if cancelled():
-                        raise Cancelled('작업을 취소했습니다.')
+                        raise Cancelled(tr('작업을 취소했습니다.'))
                     if time.monotonic() - started > timeout:
-                        raise ValueError('문서 변환 시간이 초과됐습니다. Office/한글의 확인창과 문서 상태를 확인해 주세요.')
+                        raise ValueError(tr('문서 변환 시간이 초과됐습니다. Office/한글의 확인창과 문서 상태를 확인해 주세요.'))
                     time.sleep(.1)
                 status = json.loads(result_file.read_text(encoding='utf-8')) if result_file.exists() else {}
             finally:
@@ -112,7 +134,15 @@ def to_pdf(source, target, cancelled=lambda: False, timeout=90):
                     process.wait(timeout=5)
                 result_file.unlink(missing_ok=True)
         if process.returncode != 0 or not status.get('ok'):
-            raise ValueError(status.get('error', '변환 앱을 실행하지 못했습니다. 해당 Office 또는 한글 설치를 확인해 주세요.'))
+            from .libreoffice import find_executable, convert as libreoffice_convert
+            alternative = find_executable()
+            if alternative:
+                # This is the private output of the failed native helper, never
+                # an existing user file. Do not pass a partial PDF to fallback.
+                target.unlink(missing_ok=True)
+                libreoffice_convert(source, target, cancelled, timeout, alternative)
+            else:
+                raise ValueError(tr('Office/한글 변환에 실패했습니다. 해당 프로그램 또는 LibreOffice 설치를 확인해 주세요.'))
     with open_pdf(target):
         pass
 
@@ -158,14 +188,14 @@ def native_child(source, target, status_path):
             from .hwp_guard import allow_job
             with allow_job(app, source, target):
                 if not app.Open(str(source), '', 'forceopen:true'):
-                    raise ValueError('한글에서 파일을 열지 못했습니다.')
-                if not app.SaveAs(str(target), 'PDF', ''):
-                    raise ValueError('한글 PDF 저장에 실패했습니다.')
+                    raise ValueError(tr('한글에서 파일을 열지 못했습니다.'))
+                from .hwp_pdf import export_pdf
+                export_pdf(app, target)
             app = None
         status = {'ok': True}
     except Exception as error:
-        name = '한컴 한글' if ext in {'.hwp', '.hwpx'} else 'Microsoft Office'
-        status = {'ok': False, 'error': f'{name}에서 변환하지 못했습니다. 설치·인증 상태와 암호/확인창을 확인해 주세요.', 'detail': str(error)}
+        name = tr('한컴 한글') if ext in {'.hwp', '.hwpx'} else 'Microsoft Office'
+        status = {'ok': False, 'error': tr('{v0}에서 변환하지 못했습니다. 설치·인증 상태와 암호/확인창을 확인해 주세요.', v0=name), 'detail': str(error)}
     finally:
         if document is not None:
             try:

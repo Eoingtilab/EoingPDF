@@ -1,3 +1,4 @@
+from .localization import tr
 from contextlib import contextmanager
 from pathlib import Path
 import shutil
@@ -52,7 +53,7 @@ def allow_job(app, source, target):
                     registered = True
                     break
             if not registered:
-                raise ValueError('한글 파일 접근 모듈을 연결하지 못했습니다. 한컴 한글 버전을 확인해 주세요.')
+                raise ValueError(tr('한글 파일 접근 모듈을 연결하지 못했습니다. 한컴 한글 버전을 확인해 주세요.'))
             yield
         finally:
             # Revoke paths before cleanup; a still-loaded DLL must allow nothing.
@@ -64,7 +65,7 @@ def allow_job(app, source, target):
             try:
                 app.Quit()
             except Exception:
-                logging.exception('한글 변환 인스턴스 종료 실패')
+                logging.exception(tr('한글 변환 인스턴스 종료 실패'))
             # The caller still holds this wrapper. Release its owned COM pointer
             # so HWP can unload the DLL before TemporaryDirectory removes it.
             if hasattr(app, '_oleobj_'):
