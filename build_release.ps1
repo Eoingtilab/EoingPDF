@@ -1,8 +1,10 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 $version = (Get-Content VERSION -Raw).Trim()
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'VERSION 형식을 확인해 주세요.' }
 $releaseFolder = Join-Path $PSScriptRoot 'release\EoingPDF'
+$releaseFolder = Join-Path $PSScriptRoot 'release\EoingPDF'
+New-Item -ItemType Directory -Force -Path (Split-Path $releaseFolder -Parent) | Out-Null
 $running = Get-Process EoingPDF -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq (Join-Path $releaseFolder 'EoingPDF.exe') }
 if ($running) { throw '배포 폴더의 어잉PDF를 종료한 뒤 다시 빌드해 주세요.' }
 $pythonExe = Join-Path $PSScriptRoot '.venv_d\Scripts\python.exe'
@@ -63,7 +65,7 @@ $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 & $compiler /nologo /target:winexe /platform:x64 /out:build\staging\EoingPDF\EoingPDF.Shell.exe /reference:System.Windows.Forms.dll native\ShellBridge.cs
 if ($LASTEXITCODE -ne 0) { throw '우클릭 연결 프로그램 빌드 실패' }
 Copy-Item -LiteralPath assets\EoingPDF.Explorer.dll -Destination build\staging\EoingPDF\EoingPDF.Explorer.dll
-Copy-Item README.md,CHANGELOG.md,VERSION,docs\THIRD_PARTY.md -Destination build\staging\EoingPDF
+Copy-Item README.md,CHANGELOG.md,VERSION,LICENSE,docs\THIRD_PARTY.md -Destination build\staging\EoingPDF
 Copy-Item docs -Destination build\staging\EoingPDF -Recurse
 Copy-Item install-context-menu.cmd,uninstall-context-menu.cmd -Destination build\staging\EoingPDF
 & $pythonExe tests\frozen_smoke.py --exe build\staging\EoingPDF\EoingPDF.exe
