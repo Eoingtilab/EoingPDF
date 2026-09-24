@@ -49,7 +49,7 @@ class DiffDialog(QDialog):
         self.paths = [Path(before) if before else None, Path(after) if after else None]
         self.counts = [0, 0]
         self.setWindowTitle(tr('어잉PDF · 두 문서 비교'))
-        self.resize(1040, 820)
+        self.resize(820, 640)
         layout = QVBoxLayout(self)
         row = QHBoxLayout()
         self.file_buttons = []

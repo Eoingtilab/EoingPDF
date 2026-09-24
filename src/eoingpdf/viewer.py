@@ -5,7 +5,7 @@ from pathlib import Path
 import pymupdf as pdf
 from PySide6.QtCore import Qt, QEvent, QTimer, QSize, QPoint, Signal, QRectF
 from PySide6.QtGui import QImage, QPixmap, QShortcut, QKeySequence, QIcon, QGuiApplication
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSpinBox, QComboBox, QInputDialog, QFileDialog, QMessageBox, QListWidget, QListWidgetItem, QListView, QWidget, QAbstractSpinBox, QLineEdit
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSpinBox, QComboBox, QInputDialog, QFileDialog, QMessageBox, QListWidget, QListWidgetItem, QListView, QWidget, QAbstractSpinBox, QAbstractItemView, QLineEdit, QMenu
 from .core import open_pdf, pages_from_text, Request, run
 
 
@@ -39,12 +39,25 @@ def unlock_viewer_pdf(path, parent=None, password=''):
         return password, document.page_count
 
 
+class PageSidebar(QListWidget):
+    order_changed = Signal(object)
+
+    def dropEvent(self, event):
+        current = self.currentItem().data(Qt.UserRole) if self.currentItem() else None
+        before = [self.item(i).data(Qt.UserRole) for i in range(self.count())]
+        super().dropEvent(event)
+        after = [self.item(i).data(Qt.UserRole) for i in range(self.count())]
+        if after != before:
+            QTimer.singleShot(0, lambda payload=(after, current): self.order_changed.emit(payload))
+
+
 class PdfViewer(QDialog):
     def __init__(self, path, parent=None, page=0):
         super().__init__(parent)
         self.path = Path(path)
         self.password, self.count = unlock_viewer_pdf(self.path, self)
         self.pages = list(range(self.count))
+        self.thumbnail_mode = True
         self.dirty = False
         self.search_hit = None
         self.slideshow = None
@@ -62,15 +75,27 @@ class PdfViewer(QDialog):
         open_button.clicked.connect(self.choose_pdf)
         delete_button = QPushButton(tr('페이지 삭제'))
         delete_button.clicked.connect(self.remove_pages)
+        self.move_up_button = QPushButton(tr('위로'))
+        self.move_up_button.setToolTip(tr('현재 페이지를 한 칸 앞으로 이동'))
+        self.move_up_button.clicked.connect(lambda: self.move_current_page(-1))
+        self.move_down_button = QPushButton(tr('아래로'))
+        self.move_down_button.setToolTip(tr('현재 페이지를 한 칸 뒤로 이동'))
+        self.move_down_button.clicked.connect(lambda: self.move_current_page(1))
+        self.more_features_button = QPushButton(tr('더 많은 기능'))
+        self.more_features_button.setToolTip(tr('PDF 보조 기능을 한곳에서 선택합니다.'))
+        self.more_features_menu = QMenu(self.more_features_button)
+        self.more_features_button.setMenu(self.more_features_menu)
         slideshow_button = QPushButton(tr('슬라이드쇼 · F5'))
         slideshow_button.clicked.connect(self.start_slideshow)
         bar.addWidget(open_button)
         bar.addWidget(delete_button)
+        bar.addWidget(self.move_up_button)
+        bar.addWidget(self.move_down_button)
         bar.addWidget(slideshow_button)
+        bar.addWidget(self.more_features_button)
         self.save_button = QPushButton(tr('저장'))
         self.save_button.setEnabled(False)
         self.save_button.clicked.connect(self.save_changes)
-        bar.addWidget(self.save_button)
         self.previous = QPushButton(tr('‹ 이전'))
         self.next = QPushButton(tr('다음 ›'))
         self.page = QSpinBox()
@@ -98,7 +123,6 @@ class PdfViewer(QDialog):
         navigation.addWidget(self.next)
         navigation.addStretch()
         navigation.addWidget(self.zoom)
-        from PySide6.QtWidgets import QMenu
         self.print_button = QPushButton(tr('인쇄 준비'))
         print_menu = QMenu(self.print_button)
         for title, action in [(tr('밝은 인쇄용 사본'), 'print_light'), (tr('4쪽 모아찍기'), 'four_up'), (tr('소책자 인쇄 배치'), 'booklet')]:
@@ -108,6 +132,7 @@ class PdfViewer(QDialog):
         self.print_button.setMenu(print_menu)
         navigation.addWidget(self.print_button)
         bar.addStretch()
+        bar.addWidget(self.save_button)
         self.close_button = QPushButton(tr('닫기'))
         self.close_button.clicked.connect(self.close)
         bar.addWidget(self.close_button)
@@ -118,13 +143,11 @@ class PdfViewer(QDialog):
         update_button = QPushButton(tr('업데이트'))
         update_button.clicked.connect(lambda: show_update_status(self))
         layout.addLayout(bar)
-        from .sniffer_ui import MicroSniffer, DiagnosticChips
+        from .sniffer_ui import MicroSniffer
         self.sniffer = MicroSniffer(self)
-        self.chips = DiagnosticChips(self)
         self.sniffed_path = None
-        self.sniffer.result.connect(self.chips.display)
-        self.chips.action.connect(self.diagnostic_action)
-        layout.addWidget(self.chips)
+        self.suggested_name = ''
+        self.sniffer.result.connect(self.handle_diagnostics)
         from .page_scroll import PageScrollArea
         self.scroll = PageScrollArea()
         self.scroll.page_requested.connect(self.scroll_page)
@@ -142,15 +165,21 @@ class PdfViewer(QDialog):
         self.fit_timer.timeout.connect(self.render)
         self.scroll.viewport().installEventFilter(self)
         body = QHBoxLayout()
-        self.thumbnails = QListWidget()
+        self.thumbnails = PageSidebar()
         self.thumbnails.setFixedWidth(156)
         self.thumbnails.setViewMode(QListView.IconMode)
-        self.thumbnails.setMovement(QListView.Static)
+        self.thumbnails.setMovement(QListView.Snap)
+        self.thumbnails.setDragDropMode(QAbstractItemView.InternalMove)
+        self.thumbnails.setDefaultDropAction(Qt.MoveAction)
+        self.thumbnails.setDragEnabled(True)
+        self.thumbnails.setAcceptDrops(True)
+        self.thumbnails.setDropIndicatorShown(True)
         self.thumbnails.setWrapping(False)
         self.thumbnails.setFlow(QListView.TopToBottom)
         self.thumbnails.setIconSize(QSize(112, 144))
         self.thumbnails.setSpacing(5)
         self.thumbnails.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.thumbnails.order_changed.connect(self.apply_sidebar_order)
         self.thumbnail_timer = QTimer(self)
         self.thumbnail_timer.setSingleShot(True)
         self.thumbnail_timer.timeout.connect(self.fill_thumbnails)
@@ -188,6 +217,7 @@ class PdfViewer(QDialog):
         for key, delta in [('PgDown', 1), ('PgUp', -1)]:
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.activated.connect(lambda d=delta: self.page.setValue(self.page.value() + d))
+        self.update_more_features()
         self.reset_thumbnails()
         self.render()
         QShortcut(QKeySequence('F5'), self).activated.connect(self.start_slideshow)
@@ -258,9 +288,34 @@ class PdfViewer(QDialog):
     def restore_status(self):
         self.status.setText(tr('저장하지 않은 변경이 있어요 · 저장 버튼으로 새 PDF를 만드세요') if self.dirty else tr('원본은 수정하지 않습니다'))
 
+    def handle_diagnostics(self, report):
+        name = report.get('suggested_name', '') if isinstance(report, dict) else ''
+        self.suggested_name = name if isinstance(name, str) else ''
+        self.update_more_features()
+
+    def update_more_features(self):
+        self.more_features_menu.clear()
+        from .advanced import TOOLS
+        for key, (name, _) in TOOLS.items():
+            action = self.more_features_menu.addAction(tr(name))
+            action.triggered.connect(lambda checked=False, tool=key: self.diagnostic_action(tool))
+        if self.suggested_name:
+            self.more_features_menu.addSeparator()
+            suggested_name_action = self.more_features_menu.addAction(tr('제목으로 파일명 추천'))
+            suggested_name_action.triggered.connect(lambda: self.diagnostic_action('rename'))
+        self.more_features_menu.addSeparator()
+        self.sidebar_mode_action = self.more_features_menu.addAction('')
+        self.update_sidebar_mode_action()
+        self.sidebar_mode_action.triggered.connect(self.toggle_sidebar_mode)
+        self.more_features_menu.addSeparator()
+        presentation = self.more_features_menu.addAction(tr('슬라이드쇼 · F5'))
+        presentation.triggered.connect(self.start_slideshow)
+        table = self.more_features_menu.addAction(tr('표 드래그 복사'))
+        table.triggered.connect(lambda: self.table_copy_button.setChecked(True))
+
     def diagnostic_action(self, action):
         if action == 'rename':
-            name = self.chips.suggested_name
+            name = self.suggested_name
             if name and Path(name).name == name and not any(c in name for c in '<>:"/\\|?*'):
                 self.save_changes(suggested_name=name)
         elif action == 'presentation':
@@ -310,16 +365,74 @@ class PdfViewer(QDialog):
         self.thumbnails.blockSignals(True)
         self.thumbnails.clear()
         self.thumbnail_cache = set()
-        for index in range(self.count):
+        for index, source_page in enumerate(self.pages):
             item = QListWidgetItem()
-            item.setSizeHint(QSize(128, 180))
-            item.setTextAlignment(Qt.AlignHCenter)
+            item.setData(Qt.UserRole, source_page)
+            item.setFlags(item.flags() | Qt.ItemIsDragEnabled | Qt.ItemIsDropEnabled)
+            if self.thumbnail_mode:
+                item.setSizeHint(QSize(128, 180))
+                item.setTextAlignment(Qt.AlignHCenter)
+            else:
+                item.setText(tr('{page}페이지', page=index + 1))
+                item.setToolTip(tr('원본 {page}페이지', page=source_page + 1))
+                item.setSizeHint(QSize(170, 36))
             self.thumbnails.addItem(item)
         self.thumbnails.setCurrentRow(self.page.value() - 1)
         self.thumbnails.blockSignals(False)
-        self.thumbnail_timer.start(30)
+        if self.thumbnail_mode:
+            self.thumbnail_timer.start(30)
+
+    def toggle_sidebar_mode(self):
+        self.thumbnail_mode = not self.thumbnail_mode
+        self.thumbnails.setFixedWidth(156 if self.thumbnail_mode else 190)
+        self.thumbnails.setViewMode(QListView.IconMode if self.thumbnail_mode else QListView.ListMode)
+        self.thumbnails.setIconSize(QSize(112, 144) if self.thumbnail_mode else QSize(0, 0))
+        self.reset_thumbnails()
+        self.update_sidebar_mode_action()
+
+    def update_sidebar_mode_action(self):
+        if hasattr(self, 'sidebar_mode_action'):
+            self.sidebar_mode_action.setText(tr('목록 보기') if self.thumbnail_mode else tr('썸네일 보기'))
+
+    def _mark_page_edit(self):
+        self.dirty = True
+        self.save_button.setEnabled(True)
+        self.setWindowTitle(tr('* {v0} · 어잉PDF', v0=self.path.name))
+
+    def move_current_page(self, delta):
+        row = self.page.value() - 1
+        target = row + delta
+        if target < 0 or target >= self.count:
+            return
+        page_id = self.pages.pop(row)
+        self.pages.insert(target, page_id)
+        self._mark_page_edit()
+        self.page.blockSignals(True)
+        self.page.setValue(target + 1)
+        self.page.blockSignals(False)
+        self.reset_thumbnails()
+        self.render()
+
+    def apply_sidebar_order(self, payload):
+        order, current = payload
+        order = list(order)
+        if len(order) != self.count or set(order) != set(self.pages):
+            self.reset_thumbnails()
+            return
+        if order == self.pages:
+            return
+        self.pages = order
+        self._mark_page_edit()
+        if current in self.pages:
+            self.page.blockSignals(True)
+            self.page.setValue(self.pages.index(current) + 1)
+            self.page.blockSignals(False)
+        self.reset_thumbnails()
+        self.render()
 
     def fill_thumbnails(self):
+        if not self.thumbnail_mode:
+            return
         viewport = self.thumbnails.viewport()
         first = max(0, self.thumbnails.indexAt(QPoint(10, 10)).row())
         last = self.thumbnails.indexAt(QPoint(10, max(10, viewport.height() - 10))).row()
@@ -383,7 +496,7 @@ class PdfViewer(QDialog):
         self.search_hit = None
         self.path, self.count = Path(path), count
         self.sniffed_path = None
-        self.chips.hide()
+        self.suggested_name = ''
         self.sniffer.start(self.path)
         self.sniffed_path = self.path
         self.pages = list(range(count))
@@ -443,9 +556,7 @@ class PdfViewer(QDialog):
             return
         self.pages = [page for index, page in enumerate(self.pages) if index not in removed]
         self.count = len(self.pages)
-        self.dirty = True
-        self.save_button.setEnabled(True)
-        self.setWindowTitle(tr('* {v0} · 어잉PDF', v0=self.path.name))
+        self._mark_page_edit()
         self.page.blockSignals(True)
         self.page.setRange(1, self.count)
         self.page.setSuffix(f' / {self.count}')
@@ -539,6 +650,8 @@ class PdfViewer(QDialog):
                         area.width / page.rect.width, area.height / page.rect.height))
             self.previous.setEnabled(self.page.value() > 1)
             self.next.setEnabled(self.page.value() < self.count)
+            self.move_up_button.setEnabled(self.page.value() > 1)
+            self.move_down_button.setEnabled(self.page.value() < self.count)
             scrollbar = self.scroll.verticalScrollBar()
             if self._wheel_bottom_page == self.page.value():
                 scrollbar.setValue(scrollbar.maximum())

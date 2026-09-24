@@ -63,6 +63,10 @@ def allow_job(app, source, target):
             except Exception:
                 pass
             try:
+                app.Clear(1)
+            except Exception:
+                pass
+            try:
                 app.Quit()
             except Exception:
                 logging.exception(tr('한글 변환 인스턴스 종료 실패'))

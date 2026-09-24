@@ -74,8 +74,20 @@ class UpdateTests(unittest.TestCase):
             with self.assertRaises(LicenseError):
                 self.info({'new_version': '2.3.0', 'download_link': url})
 
-    def test_missing_or_invalid_hash_never_downloads(self):
-        for digest in (None, '', False, 'a' * 63, 'g' * 64, 'a' * 64 + '\n'):
+    def test_standard_edd_response_without_hash_is_pinned_after_download(self):
+        payload = b'MZ' + b'x' * 4096
+        for digest in (None, ''):
+            info = {'url': 'https://app.nal.la/test', 'sha256': digest}
+            with tempfile.TemporaryDirectory() as folder, patch.dict('os.environ', {'LOCALAPPDATA': folder}), patch('eoingpdf.updates.build_opener') as opener:
+                opener.return_value.open.return_value = io.BytesIO(payload)
+                result = download(info)
+                self.assertTrue(result.is_file())
+                self.assertEqual(info['sha256'], hashlib.sha256(payload).hexdigest())
+            update = self.info({'new_version': '2.3.0', 'download_link': 'https://app.nal.la/test', 'sha256': digest})
+            self.assertIsNone(update['sha256'])
+
+    def test_invalid_hash_never_downloads(self):
+        for digest in (False, 'a' * 63, 'g' * 64, 'a' * 64 + '\n'):
             with patch('eoingpdf.updates.build_opener') as opener:
                 with self.assertRaises(ValueError):
                     download({'url': 'https://app.nal.la/test', 'sha256': digest})

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pymupdf as pdf
 import pytest
-from PySide6.QtWidgets import QPushButton, QFileDialog, QInputDialog
+from PySide6.QtWidgets import QFileDialog, QInputDialog
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from eoingpdf.viewer import PdfViewer
@@ -33,9 +33,11 @@ def test_recommended_name_saves_selected_pages_preserving_original(tmp_path, mon
             selections.append(Path(suggested))
             return str(target), filters
         monkeypatch.setattr(QFileDialog, 'getSaveFileName', choose)
-        window.chips.display({'suggested_name': target.name, 'diagnostics': [
+        window.handle_diagnostics({'suggested_name': target.name, 'diagnostics': [
             {'action': 'rename', 'title': '제목으로 파일명 추천', 'code': 'D-09'}]})
-        window.chips.findChild(QPushButton).click()
+        rename_action = next(action for action in window.more_features_menu.actions()
+                             if action.text() == '제목으로 파일명 추천')
+        rename_action.trigger()
         assert selections == [target]
         assert source.read_bytes() == original
         assert target.read_bytes() == b'existing'
@@ -62,10 +64,10 @@ def test_recommendation_cancel_and_invalid_name_leave_document_untouched(tmp_pat
     calls = []
     monkeypatch.setattr(QFileDialog, 'getSaveFileName', lambda *args: (calls.append(args) or '', ''))
     try:
-        window.chips.suggested_name = '../outside.pdf'
+        window.suggested_name = '../outside.pdf'
         window.diagnostic_action('rename')
         assert not calls
-        window.chips.suggested_name = 'Suggested.pdf'
+        window.suggested_name = 'Suggested.pdf'
         window.diagnostic_action('rename')
         assert len(calls) == 1
         assert window.path == source and not window.dirty

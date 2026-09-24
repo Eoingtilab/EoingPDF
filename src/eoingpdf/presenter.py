@@ -14,7 +14,7 @@ class PresenterHud(QDialog):
         super().__init__(audience, Qt.Window)
         self.audience = audience
         self.setWindowTitle(tr('어잉PDF · 발표자 화면'))
-        self.resize(820, 720)
+        self.resize(800, 640)
         apply_style(self, '''
             QDialog {background:#f6f8fc;color:#193455;}
             QLabel {background:transparent;color:#193455;font-size:16px;padding:4px;}

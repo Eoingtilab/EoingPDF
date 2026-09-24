@@ -36,6 +36,12 @@ def prepare(root):
         'new_version': version,
         'github_repository': 'Eoingtilab/EoingPDF',
         'tag': f'v{version}',
+        'default_customer_asset': names[0],
+        'edd_git_updater': {
+            'asset_file': names[0],
+            'file_name': names[0],
+            'plugin_folder_name': 'EoingPDF',
+        },
         'publication_status': 'local_only_unverified',
         'license_required': True,
         'code_signing': 'deferred',

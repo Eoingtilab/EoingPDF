@@ -32,6 +32,8 @@ def test_registration_separates_installer_and_portable_hashes(tmp_path):
     assert fields['download_link'] is None
     assert packet['publication_status'] == 'local_only_unverified'
     assert packet['tag'] == 'v2.2.0' and packet['item_id'] == 26818
+    assert packet['default_customer_asset'] == 'EoingPDF-2.2.0-Setup-x64.exe'
+    assert packet['edd_git_updater']['asset_file'] == 'EoingPDF-2.2.0-Setup-x64.exe'
 
 
 def test_stale_zip_does_not_replace_existing_metadata(tmp_path):

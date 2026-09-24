@@ -3,7 +3,6 @@ Set-Location $PSScriptRoot
 $version = (Get-Content VERSION -Raw).Trim()
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'VERSION 형식을 확인해 주세요.' }
 $releaseFolder = Join-Path $PSScriptRoot 'release\EoingPDF'
-$releaseFolder = Join-Path $PSScriptRoot 'release\EoingPDF'
 New-Item -ItemType Directory -Force -Path (Split-Path $releaseFolder -Parent) | Out-Null
 $running = Get-Process EoingPDF -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq (Join-Path $releaseFolder 'EoingPDF.exe') }
 if ($running) { throw '배포 폴더의 어잉PDF를 종료한 뒤 다시 빌드해 주세요.' }
@@ -13,10 +12,12 @@ if (-not (Test-Path $pythonExe)) { $pythonExe = 'python' }
 if ($LASTEXITCODE -ne 0) { throw '정적 코드 검사 실패' }
 & $pythonExe scripts\package_search_model.py --verify
 if ($LASTEXITCODE -ne 0) { throw '검색 모델 파일 검증 실패' }
-& .\native\build_ink.cmd
-if ($LASTEXITCODE -ne 0) { throw 'Direct2D 판서 빌드 실패' }
-& .\native\build_explorer.cmd
-if ($LASTEXITCODE -ne 0) { throw '현대식 탐색기 명령 빌드 실패' }
+if ($env:EOING_SKIP_NATIVE -ne '1') {
+    & .\native\build_ink.cmd
+    if ($LASTEXITCODE -ne 0) { throw 'Direct2D native build failed' }
+    & .\native\build_explorer.cmd
+    if ($LASTEXITCODE -ne 0) { throw 'Explorer native build failed' }
+}
 & $pythonExe scripts\package_modern_shell.py
 if ($LASTEXITCODE -ne 0) { throw '현대식 탐색기 앱 ID 패키지 생성 실패' }
 $testFiles = @(Get-ChildItem tests -Filter 'test_*.py' | Sort-Object Name | ForEach-Object FullName)
@@ -55,8 +56,10 @@ if ($LASTEXITCODE -ne 0) { throw '양식 입력 UI 테스트 실패' }
 if ($LASTEXITCODE -ne 0) { throw '암호 뷰어 테스트 실패' }
 & $pythonExe tests\stamp_ui_smoke.py
 if ($LASTEXITCODE -ne 0) { throw '도장 입력 UI 테스트 실패' }
-& .\native\build_hwp.cmd
-if ($LASTEXITCODE -ne 0) { throw '한글 접근 모듈 빌드 실패' }
+if ($env:EOING_SKIP_NATIVE -ne '1') {
+    & .\native\build_hwp.cmd
+    if ($LASTEXITCODE -ne 0) { throw 'Hancom native guard build failed' }
+}
 & $pythonExe scripts\make_icon.py
 if ($LASTEXITCODE -ne 0) { throw '아이콘 생성 실패' }
 & $pythonExe -m PyInstaller --noconfirm --distpath build\staging --workpath build packaging\EoingPDF.spec

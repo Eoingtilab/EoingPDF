@@ -861,5 +861,20 @@
   "업데이트 버전은 현재 버전보다 높아야 합니다.": "The update version must be newer than the current version.",
   "새 포터블 실행 파일의 버전 또는 실행 검사에 실패했습니다.": "The new portable executable failed its version or runtime check.",
   "실행 중인 포터블은 종료 후 복구 도우미로 복원해야 합니다.": "The running portable app must be closed before the recovery helper restores it.",
-  "새 버전의 단일 EXE 파일과 SHA-256 정보가 아직 서버에 등록되지 않았습니다.": "The server does not yet provide the new single EXE and its SHA-256 checksum."
+  "새 버전의 단일 EXE 파일과 SHA-256 정보가 아직 서버에 등록되지 않았습니다.": "The server does not yet provide the new single EXE and its SHA-256 checksum.",
+  "위로": "Move up",
+  "현재 페이지를 한 칸 앞으로 이동": "Move the current page one position earlier",
+  "아래로": "Move down",
+  "현재 페이지를 한 칸 뒤로 이동": "Move the current page one position later",
+  "더 많은 기능": "More features",
+  "PDF 보조 기능을 한곳에서 선택합니다.": "Choose additional PDF tools in one place.",
+  "제목으로 파일명 추천": "Suggest filename from title",
+  "{page}페이지": "Page {page}",
+  "원본 {page}페이지": "Original page {page}",
+  "목록 보기": "List view",
+  "썸네일 보기": "Thumbnail view",
+  "한글 PDF 저장이 완료되지 않았습니다.": "Hancom PDF saving did not complete.",
+  "한글의 자동 PDF 저장 기능을 실행하지 못했습니다.": "Hancom automatic PDF saving could not be executed.",
+  "서버의 SHA-256 검증 정보가 올바르지 않습니다.": "The server SHA-256 verification value is invalid.",
+  "새 버전의 단일 EXE 다운로드가 아직 서버에 등록되지 않았습니다.": "The new portable EXE download has not been registered on the server yet."
 }

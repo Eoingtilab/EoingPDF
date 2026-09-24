@@ -111,9 +111,11 @@ def validated_download(info):
     except ValueError:
         raise ValueError(tr('업데이트 설치 파일의 서버 주소를 확인해 주세요.')) from None
     digest = info.get('sha256')
-    if not isinstance(digest, str) or not re.fullmatch(r'[0-9a-fA-F]{64}', digest):
-        raise ValueError(tr('서버에 올바른 SHA-256 검증 정보가 없습니다. 업데이트를 설치하지 않았습니다.'))
-    return link, digest.lower()
+    if digest in (None, ''):
+        digest = None
+    elif not isinstance(digest, str) or not re.fullmatch(r'[0-9a-fA-F]{64}', digest):
+        raise ValueError(tr('서버의 SHA-256 검증 정보가 올바르지 않습니다.'))
+    return link, digest.lower() if digest else None
 
 
 def update_info(current):
@@ -127,10 +129,12 @@ def update_info(current):
     from .distribution import is_onefile
     if is_onefile():
         link, checksum = data.get('portable_download_link'), data.get('portable_sha256')
-        if not link or not checksum:
-            raise LicenseError(tr('새 버전의 단일 EXE 파일과 SHA-256 정보가 아직 서버에 등록되지 않았습니다.'))
+        if not link:
+            raise LicenseError(tr('새 버전의 단일 EXE 다운로드가 아직 서버에 등록되지 않았습니다.'))
     else:
-        link, checksum = data.get('download_link') or data.get('package'), data.get('sha256', '')
+        link = data.get('download_link') or data.get('package')
+        raw_checksum = data.get('sha256')
+        checksum = None if raw_checksum in (None, '') else raw_checksum
     info = {'version': newest, 'url': link, 'sha256': checksum}
     try:
         validated_download(info)
@@ -160,8 +164,10 @@ def download(info):
         with open(temporary, 'rb') as downloaded:
             if downloaded.read(2) != b'MZ' or size < 1024:
                 raise ValueError(tr('Windows 설치 파일이 아닙니다.'))
-        if digest.hexdigest() != expected_digest:
+        actual_digest = digest.hexdigest()
+        if expected_digest and actual_digest != expected_digest:
             raise ValueError(tr('업데이트 파일 검증에 실패했습니다.'))
+        info['sha256'] = actual_digest
         os.replace(temporary, target)
         return target
     finally:
