@@ -15,6 +15,8 @@ class SettingsDialog(QDialog):
         self._backup_results = queue.Queue()
         self._backup_pending = False
         self._backup = None
+        from .package_context import store_managed_updates
+        self.store_managed_updates = store_managed_updates()
         self.setWindowTitle(tr('어잉PDF · 설정'))
         self.resize(620, 460)
         apply_style(self, '''
@@ -107,6 +109,9 @@ class SettingsDialog(QDialog):
         settings(self)
 
     def check_updates(self):
+        if self.store_managed_updates:
+            self.refresh()
+            return
         updater = getattr(QApplication.instance(), 'updater', None)
         if updater is not None:
             updater.check()
@@ -114,6 +119,12 @@ class SettingsDialog(QDialog):
         self.refresh()
 
     def request_backup_check(self):
+        if self.store_managed_updates:
+            self._backup_pending = False
+            self._backup = None
+            self.rollback_button.setEnabled(False)
+            self.rollback_status.setText(tr('Microsoft Store 설치판은 Store 업데이트와 복구를 사용합니다.'))
+            return
         if self._backup_pending:
             return
         self._backup_pending = True
@@ -162,16 +173,19 @@ class SettingsDialog(QDialog):
 
     def refresh(self):
         from .shell import registration_status
-        try:
-            shell = registration_status()
-            if shell['ready']:
-                self.shell_status.setText(tr('우클릭 메뉴와 PDF 열기 연결이 현재 설치본으로 등록되어 있습니다.'))
-            elif shell['owner'] != '없음':
-                self.shell_status.setText(tr('다른 설치본이 PDF 열기 연결을 사용 중입니다. 이 설치본으로 다시 등록하려면 위 버튼을 누르세요.'))
-            else:
-                self.shell_status.setText(tr('우클릭 메뉴가 아직 등록되지 않았습니다. 위 버튼에서 등록할 수 있습니다.'))
-        except Exception:
-            self.shell_status.setText(tr('우클릭 메뉴 등록 상태를 확인하지 못했습니다.'))
+        if self.store_managed_updates:
+            self.shell_status.setText(tr('Microsoft Store 설치판은 탐색기 메뉴와 앱 등록을 패키지가 관리합니다.'))
+        else:
+            try:
+                shell = registration_status()
+                if shell['ready']:
+                    self.shell_status.setText(tr('우클릭 메뉴와 PDF 열기 연결이 현재 설치본으로 등록되어 있습니다.'))
+                elif shell['owner'] != '없음':
+                    self.shell_status.setText(tr('다른 설치본이 PDF 열기 연결을 사용 중입니다. 이 설치본으로 다시 등록하려면 위 버튼을 누르세요.'))
+                else:
+                    self.shell_status.setText(tr('우클릭 메뉴가 아직 등록되지 않았습니다. 위 버튼에서 등록할 수 있습니다.'))
+            except Exception:
+                self.shell_status.setText(tr('우클릭 메뉴 등록 상태를 확인하지 못했습니다.'))
         try:
             backup, error = self._backup_results.get_nowait()
         except queue.Empty:
@@ -182,6 +196,11 @@ class SettingsDialog(QDialog):
             self.rollback_status.setText(tr('백업을 확인하지 못했습니다: ') + error if error else
                                          tr('복원 가능한 이전 버전: {v0}', v0=backup[1]) if backup else tr('복원 가능한 이전 버전이 없습니다.'))
             self.rollback_button.setEnabled(backup is not None and error is None)
+        if self.store_managed_updates:
+            self.update_status.setText(tr('Microsoft Store 설치판은 Microsoft Store가 새 버전을 자동으로 관리합니다.'))
+            self.check_button.setEnabled(False)
+            self.rollback_button.setEnabled(False)
+            return
         updater = getattr(QApplication.instance(), 'updater', None)
         if updater is None:
             self.update_status.setText(tr('이 실행 환경에서는 자동 업데이트 서비스가 시작되지 않았습니다.'))
@@ -194,7 +213,8 @@ class SettingsDialog(QDialog):
     def showEvent(self, event):
         super().showEvent(event)
         self.refresh()
-        self.request_backup_check()
+        if not self.store_managed_updates:
+            self.request_backup_check()
         self.timer.start()
 
     def hideEvent(self, event):

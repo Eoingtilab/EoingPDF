@@ -888,5 +888,10 @@
   "릴리스 저장소의 버전 정보가 올바르지 않습니다.": "The release repository contains an invalid version.",
   "GitHub 릴리스가 아닌 주소로 이동되어 업데이트를 중단했습니다.": "The update was stopped because the download redirected outside GitHub Releases.",
   "업데이트 파일 검증 정보가 없습니다.": "Update file verification information is missing.",
-  "최신 배포 버전: {version}": "最新リリースバージョン: {version}"
+  "최신 배포 버전: {version}": "最新リリースバージョン: {version}",
+  "Microsoft Store 설치판은 Microsoft Store가 업데이트를 관리합니다.": "Microsoft Store 版の更新は Microsoft Store が管理します。",
+  "Microsoft Store 설치판은 탐색기 메뉴가 패키지에 포함되어 있습니다.": "エクスプローラーのメニュー統合は Microsoft Store パッケージに含まれています。",
+  "Microsoft Store 설치판은 Store 업데이트와 복구를 사용합니다.": "Microsoft Store 版は Store 管理の更新と復旧を使用します。",
+  "Microsoft Store 설치판은 탐색기 메뉴와 앱 등록을 패키지가 관리합니다.": "Microsoft Store パッケージがエクスプローラーのメニューとアプリ登録を管理します。",
+  "Microsoft Store 설치판은 Microsoft Store가 새 버전을 자동으로 관리합니다.": "Microsoft Store 版の新しいバージョンは Microsoft Store が自動管理します。"
 }

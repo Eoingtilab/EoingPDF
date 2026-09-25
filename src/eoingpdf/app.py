@@ -620,6 +620,12 @@ class Window(QMainWindow):
             'Pretendard · SIL OFL 1.1 / PySide6 · LGPLv3 / PyMuPDF · AGPLv3'))
 
     def menu_settings(self):
+        from .package_context import is_packaged
+        if is_packaged():
+            from .shell import open_default_settings
+            open_default_settings()
+            self.status.setText(tr('Microsoft Store 설치판은 탐색기 메뉴가 패키지에 포함되어 있습니다.'))
+            return
         from .shell import install, uninstall
         box = QMessageBox(self)
         box.setWindowTitle(tr('탐색기 우클릭 메뉴'))
