@@ -1,0 +1,3 @@
+# Preserve upstream resource bytes used by SHA-256 integrity checks on Windows.
+/assets/search/tokenizer.json -text
+/assets/nalapps-sdk/NalaApps.DesignSystem.xaml -text

@@ -23,9 +23,12 @@ try {
 $portable = Join-Path $PSScriptRoot "build\portable-staging\EoingPDF-$version-portable.exe"
 & $pythonExe tests\portable_smoke.py --exe $portable
 if ($LASTEXITCODE -ne 0) { throw '단일 실행파일 검증 실패' }
+& $pythonExe tests\frozen_form_smoke.py --exe $portable
+if ($LASTEXITCODE -ne 0) { throw '단일 실행파일 자동 양식·한글 입력 검사 실패' }
 & $pythonExe tests\frozen_localization_smoke.py --exe $portable
 if ($LASTEXITCODE -ne 0) { throw '단일 실행파일 다국어 검증 실패' }
 & $pythonExe tests\portable_update_smoke.py --exe $portable
 if ($LASTEXITCODE -ne 0) { throw '단일 실행파일 교체 및 복원 검증 실패' }
+New-Item -ItemType Directory -Path release -Force | Out-Null
 Copy-Item -LiteralPath $portable -Destination (Join-Path $PSScriptRoot "release\EoingPDF-$version-portable.exe")
 Get-FileHash -LiteralPath "release\EoingPDF-$version-portable.exe" -Algorithm SHA256 | Format-List

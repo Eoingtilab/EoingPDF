@@ -1,5 +1,4 @@
 """Verify the explicit source archive contains newly added product modules only."""
-import sys
 import zipfile
 from pathlib import Path
 
@@ -11,6 +10,7 @@ if not archive_path.is_file():
 with zipfile.ZipFile(archive_path) as archive:
     names = set(archive.namelist())
     required = {
+        'EoingPDF-source/.gitattributes',
         'EoingPDF-source/src/eoingpdf/distribution.py',
         'EoingPDF-source/src/eoingpdf/staging_dock.py',
         'EoingPDF-source/packaging/onefile.marker',

@@ -73,6 +73,8 @@ Copy-Item docs -Destination build\staging\EoingPDF -Recurse
 Copy-Item install-context-menu.cmd,uninstall-context-menu.cmd -Destination build\staging\EoingPDF
 & $pythonExe tests\frozen_smoke.py --exe build\staging\EoingPDF\EoingPDF.exe
 if ($LASTEXITCODE -ne 0) { throw '패키징된 실행파일 기능 검사 실패' }
+& $pythonExe tests\frozen_form_smoke.py --exe build\staging\EoingPDF\EoingPDF.exe
+if ($LASTEXITCODE -ne 0) { throw '패키징된 자동 양식·한글 입력 검사 실패' }
 & $pythonExe tests\frozen_localization_smoke.py --exe build\staging\EoingPDF\EoingPDF.exe
 if ($LASTEXITCODE -ne 0) { throw '패키징된 다국어 변환/검색/목차 검사 실패' }
 & $pythonExe tests\frozen_update_smoke.py --folder build\staging\EoingPDF

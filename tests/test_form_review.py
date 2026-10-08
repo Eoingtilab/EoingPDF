@@ -24,6 +24,7 @@ def test_review_exclude_and_correct_type(tmp_path, rotation):
     original = source.read_bytes()
     review = FormReviewDialog(source)
     review.show()
+    app.processEvents()
     for _ in range(300):
         QTest.qWait(10)
         if not review.scan.isRunning() and review.items.count():
@@ -128,3 +129,59 @@ def test_advanced_dialog_review_to_worker(tmp_path, monkeypatch):
         page = doc[0]
         assert len(list(page.widgets())) == 1
     dialog.close()
+
+
+def test_ruled_table_review_to_form_entry_and_save(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QLineEdit
+    from eoingpdf.form_ui import FormDialog
+    app = QApplication.instance() or QApplication([])
+    source, target, filled = (tmp_path / name for name in ('table.pdf', 'form.pdf', 'filled.pdf'))
+    with pdf.open() as document:
+        page = document.new_page(width=500, height=400)
+        page.draw_rect(pdf.Rect(40, 50, 440, 130))
+        page.draw_line((160, 50), (160, 130))
+        page.draw_line((40, 90), (440, 90))
+        page.insert_text((60, 75), 'Name')
+        page.insert_text((60, 115), 'Address')
+        page.set_rotation(90)
+        document.save(source)
+    original = source.read_bytes()
+    review = FormReviewDialog(source)
+    review.show()
+    app.processEvents()
+    for _ in range(300):
+        QTest.qWait(10)
+        if not review.scan.isRunning():
+            break
+    assert review.items.count() == 2, review.status.text()
+    assert [entry['rect'] for entry in review.selection()] == [
+        [160, 50, 440, 90], [160, 90, 440, 130]]
+    assert not review.preview.pixmap().isNull()
+    assert review.grab().save(str(tmp_path / 'table-review.png'))
+    review.apply.click()
+    assert review.result() == QDialog.Accepted
+    transform(source, target, 'auto_forms', form_review=review.selection())
+    form = FormDialog(target, 0)
+    for editor, value in zip(form.fields.values(), ('홍길동', '서울시')):
+        assert isinstance(editor, QLineEdit)
+        editor.setText(value)
+    monkeypatch.setattr('eoingpdf.license_ui.ensure_license', lambda *args: True)
+    monkeypatch.setattr('eoingpdf.form_ui.QFileDialog.getSaveFileName', lambda *args: (str(filled), 'PDF'))
+    saved = []
+    form.saved.connect(saved.append)
+    form.show()
+    form.save.click()
+    for _ in range(500):
+        QTest.qWait(10)
+        if saved:
+            break
+    assert saved == [str(filled)], form.status.text()
+    with pdf.open(filled) as document:
+        page = document[0]
+        assert [field.field_value for field in page.widgets()] == ['홍길동', '서울시']
+        assert page.rotation == 90
+        assert '홍길동' in page.get_text() and '서울시' in page.get_text()
+        page.get_pixmap(matrix=pdf.Matrix(2, 2)).save(tmp_path / 'table-filled.png')
+    assert source.read_bytes() == original
+    form.close()
+    review.close()

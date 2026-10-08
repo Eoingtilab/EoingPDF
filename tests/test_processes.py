@@ -51,6 +51,34 @@ def test_private_password_process_and_exit(tmp_path):
             worker.process.waitForFinished(1000)
 
 
+def test_table_detection_child_keeps_stdout_as_json_protocol(tmp_path):
+    import json
+    import subprocess
+    source, target = tmp_path / 'table.pdf', tmp_path / 'form.pdf'
+    with pdf.open() as document:
+        page = document.new_page()
+        page.draw_rect(pdf.Rect(40, 40, 440, 120))
+        page.draw_line((160, 40), (160, 120))
+        page.draw_line((40, 80), (440, 80))
+        page.insert_text((60, 65), 'Name')
+        page.insert_text((60, 105), 'Address')
+        document.save(source)
+    packet = dict(source=str(source), target=str(target), operation='auto_forms',
+                  cancel_path=str(tmp_path / 'cancel'), locale='ko-KR')
+    result = subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / 'main.py'),
+                             '--transform-child'], input=json.dumps(packet), capture_output=True,
+                            text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.splitlines()
+    assert all(line.startswith('{') for line in lines), repr(result.stdout)
+    messages = [json.loads(line) for line in lines]
+    assert messages[-1]['type'] == 'result' and messages[-1]['success'] is True
+    assert all(message['type'] in ('progress', 'result') for message in messages)
+    with pdf.open(target) as document:
+        page = document[0]
+        assert len(list(page.widgets())) == 2
+
+
 def test_cancel_process_does_not_publish(tmp_path):
     source, target = tmp_path / 'source.pdf', tmp_path / 'cancelled.pdf'
     source_pdf(source)

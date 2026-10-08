@@ -5,6 +5,22 @@ import pymupdf as pdf
 from .core import Cancelled
 
 
+def ruled_cells(page, drawings):
+    """Recover shared borders and four-line boxes in unrotated widget coordinates."""
+    if not drawings:
+        return []
+    rotation = page.rotation
+    try:
+        # find_tables otherwise transforms a rotated page's contents. All our
+        # paths, words and widgets already use the unrotated CropBox origin.
+        page.set_rotation(0)
+        finder = page.find_tables(paths=drawings, strategy='lines')
+        # Include isolated cells, which do not form a multi-cell Table object.
+        return [pdf.Rect(cell) for cell in finder.cells]
+    finally:
+        page.set_rotation(rotation)
+
+
 def candidates(page):
     visible = pdf.Rect(0, 0, page.cropbox.width, page.cropbox.height)
     existing = [widget.rect for widget in page.widgets() or ()]
@@ -24,9 +40,26 @@ def candidates(page):
             return
         found.append((rect, kind))
 
-    for drawing in page.get_drawings():
-        if drawing.get('fill') not in (None, (1, 1, 1)):
-            continue
+    drawings = [drawing for drawing in page.get_drawings()
+                if drawing.get('fill') in (None, (1, 1, 1)) or
+                min(drawing['rect'].width, drawing['rect'].height) <= 3]
+    cells = ruled_cells(page, drawings)
+
+    def add_underline(x0, x1, y):
+        # A row separator is not an underline input across the table.
+        # Suppress it even when the adjacent cell contains a label.
+        if any(abs(y - edge) <= 3 and x0 < cell.x1 and x1 > cell.x0
+               for cell in cells for edge in (cell.y0, cell.y1)):
+            return
+        add(pdf.Rect(x0, y - 16, x1, y), 'text')
+
+    for rect in sorted(cells, key=lambda rect: (rect.y0, rect.x0)):
+        if 8 <= rect.width <= 26 and 8 <= rect.height <= 26 and .75 <= rect.width / rect.height <= 1.33:
+            add(rect, 'checkbox')
+        elif 36 <= rect.width <= 600 and 12 <= rect.height <= 360:
+            add(rect, 'text')
+
+    for drawing in drawings:
         for item in drawing['items']:
             if item[0] == 're':
                 rect = pdf.Rect(item[1])
@@ -34,10 +67,14 @@ def candidates(page):
                     add(rect, 'checkbox')
                 elif 36 <= rect.width <= 600 and 12 <= rect.height <= 72:
                     add(rect, 'text')
+                elif rect.width >= 36 and rect.height <= 3:
+                    # Office PDF exporters often paint narrow filled rectangles
+                    # instead of stroked lines for table borders and underlines.
+                    add_underline(rect.x0, rect.x1, (rect.y0 + rect.y1) / 2)
             elif item[0] == 'l':
                 first, last = item[1:3]
                 if abs(first.y - last.y) <= .5 and abs(first.x - last.x) >= 36:
-                    add(pdf.Rect(min(first.x, last.x), first.y - 16, max(first.x, last.x), first.y), 'text')
+                    add_underline(min(first.x, last.x), max(first.x, last.x), first.y)
     for block in page.get_text('blocks'):
         if block[6] != 0:
             continue
@@ -93,6 +130,8 @@ def create_fields(document, cancelled=lambda: False, progress=lambda value: None
             field.field_name = name
             field.field_label = tr('{v0}페이지 입력 칸 {v1}', v0=page_index + 1, v1=number)
             field.field_type = pdf.PDF_WIDGET_TYPE_CHECKBOX if kind == 'checkbox' else pdf.PDF_WIDGET_TYPE_TEXT
+            if kind == 'text' and rect.height > 48:
+                field.field_flags = pdf.PDF_TX_FIELD_IS_MULTILINE
             field.rect = rect
             field.field_value = 'Off' if kind == 'checkbox' else ''
             field.border_width = 0

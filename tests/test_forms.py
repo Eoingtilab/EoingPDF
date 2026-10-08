@@ -6,6 +6,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from eoingpdf.advanced import transform
 from eoingpdf.core import Cancelled
+from eoingpdf.forms import candidates
 
 
 def fixture(path, rotation=0):
@@ -90,3 +91,89 @@ def test_fill_korean_round_trip_and_reject_unknown_field(tmp_path):
     with pytest.raises(ValueError, match='다시 열어'):
         transform(form, rejected, 'fill_forms', form_values={'999999': 'value'})
     assert not rejected.exists()
+
+
+@pytest.mark.parametrize('rotation', [0, 90, 180, 270])
+@pytest.mark.parametrize('border_kind', ['stroke', 'filled'])
+def test_shared_table_borders_detect_empty_cells_without_row_wide_fields(tmp_path, rotation, border_kind):
+    source, target = tmp_path / 'table.pdf', tmp_path / 'fillable.pdf'
+    with pdf.open() as document:
+        page = document.new_page(width=650, height=850)
+        if border_kind == 'stroke':
+            page.draw_rect(pdf.Rect(70, 90, 530, 210))
+            page.draw_line((210, 90), (210, 210))
+            for y in (130, 170):
+                page.draw_line((70, y), (530, y))
+        else:
+            # Word exports borders as short, filled strips rather than strokes.
+            for x in (70, 210, 530):
+                for y in (90, 130, 170):
+                    page.draw_rect(pdf.Rect(x - .25, y, x + .25, y + 40), color=None, fill=(0, 0, 0))
+            for y in (90, 130, 170, 210):
+                for x0, x1 in ((70, 210), (210, 530)):
+                    page.draw_rect(pdf.Rect(x0, y - .25, x1, y + .25), color=None, fill=(0, 0, 0))
+        for y in (115, 155, 195):
+            page.insert_text((90, y), 'Label')
+        page.set_cropbox(pdf.Rect(30, 50, 630, 850))
+        page.set_rotation(rotation)
+        document.save(source)
+    original = source.read_bytes()
+    expected = [(180, 40, 500, 80), (180, 80, 500, 120), (180, 120, 500, 160)]
+    assert transform(source, target, 'auto_forms') == 3
+    with pdf.open(target) as document:
+        page = document[0]
+        fields = list(page.widgets())
+        assert [tuple(field.rect) for field in fields] == expected
+        assert page.rotation == rotation
+        assert page.cropbox == pdf.Rect(30, 50, 630, 850)
+        assert candidates(page) == []
+        key = str(fields[1].xref)
+    filled = tmp_path / 'filled.pdf'
+    transform(target, filled, 'fill_forms', form_values={key: '홍길동'})
+    with pdf.open(filled) as document:
+        assert '홍길동' in document[0].get_text()
+        assert any(field.field_value == '홍길동' for field in document[0].widgets())
+    assert source.read_bytes() == original
+
+
+def test_four_line_boxes_and_merged_cells_keep_text_and_existing_fields_out(tmp_path):
+    source, target = tmp_path / 'paths.pdf', tmp_path / 'fillable.pdf'
+    with pdf.open() as document:
+        page = document.new_page()
+        shape = page.new_shape()
+        for first, last in [((40, 40), (240, 40)), ((240, 40), (240, 70)),
+                            ((240, 70), (40, 70)), ((40, 70), (40, 40))]:
+            shape.draw_line(first, last)
+        shape.finish()
+        shape.commit()
+        # The right-hand column is a merged cell spanning two rows.
+        page.draw_rect(pdf.Rect(40, 120, 500, 200))
+        page.draw_line((180, 120), (180, 200))
+        page.draw_line((40, 160), (180, 160))
+        page.insert_text((60, 145), 'Label')
+        field = pdf.Widget()
+        field.field_name, field.field_type = 'existing', pdf.PDF_WIDGET_TYPE_TEXT
+        field.rect = pdf.Rect(40, 160, 180, 200)
+        page.add_widget(field)
+        document.save(source)
+    assert transform(source, target, 'auto_forms') == 2
+    with pdf.open(target) as document:
+        fields = list(document[0].widgets())
+        assert len(fields) == 3
+        assert {tuple(field.rect) for field in fields if field.field_name != 'existing'} == {
+            (40, 40, 240, 70), (180, 120, 500, 200)}
+        assert sum(field.field_name == 'existing' for field in fields) == 1
+
+
+def test_filled_underline_is_detected_without_treating_solid_boxes_as_fields(tmp_path):
+    source, target = tmp_path / 'filled-lines.pdf', tmp_path / 'form.pdf'
+    with pdf.open() as document:
+        page = document.new_page()
+        page.draw_rect(pdf.Rect(40, 80, 250, 81), color=None, fill=(0, 0, 0))
+        page.draw_rect(pdf.Rect(40, 120, 250, 150), color=None, fill=(0, 0, 0))
+        document.save(source)
+    assert transform(source, target, 'auto_forms') == 1
+    with pdf.open(target) as document:
+        page = document[0]
+        fields = list(page.widgets())
+        assert len(fields) == 1 and tuple(fields[0].rect) == (40, 64.5, 250, 80.5)

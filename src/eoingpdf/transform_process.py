@@ -105,11 +105,18 @@ class TransformWorker(QObject):
 
 
 def child_main():
+    from contextlib import redirect_stdout
+    import pymupdf as pdf
+    # stdout is exclusively our JSON protocol. Table detection and other
+    # MuPDF operations may emit informational messages on their first call.
+    pdf.set_messages(stream=sys.stderr)
+    pdf.set_log(stream=sys.stderr)
     from .advanced import transform
     from .core import Cancelled
+    protocol = sys.stdout
 
     def send(value):
-        print(json.dumps(value, ensure_ascii=True), flush=True)
+        print(json.dumps(value, ensure_ascii=True), file=protocol, flush=True)
 
     try:
         raw = sys.stdin.buffer.read(65537)
@@ -119,8 +126,9 @@ def child_main():
         configure_language(options.pop('locale', None))
         cancel_path = Path(options.pop('cancel_path'))
         target = str(options['target'])
-        changed = transform(**options, cancelled=cancel_path.exists,
-                            progress=lambda value: send({'type': 'progress', 'value': value}))
+        with redirect_stdout(sys.stderr):
+            changed = transform(**options, cancelled=cancel_path.exists,
+                                progress=lambda value: send({'type': 'progress', 'value': value}))
         options.clear()
         message = tr('결과 파일을 저장했습니다.')
         if changed:
