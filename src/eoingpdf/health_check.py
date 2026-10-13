@@ -19,7 +19,7 @@ def main(arguments):
                 return 1
         os.environ['QT_QPA_PLATFORM'] = 'offscreen'
         import pymupdf as pdf
-        from PySide6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication, QPushButton
         from PySide6.QtGui import QFontDatabase
         from .app import ROOT
         from .viewer import PdfViewer
@@ -31,12 +31,17 @@ def main(arguments):
             source = Path(folder) / 'probe.pdf'
             with pdf.open() as doc:
                 doc.new_page().insert_text((72, 72), 'EoingPDF runtime check')
+                doc.new_page().insert_text((72, 72), 'Next page')
                 doc.save(source)
             window = PdfViewer(source)
             try:
                 window.render()
                 if window.canvas.pixmap().isNull():
                     raise RuntimeError(tr('PDF 화면을 렌더링하지 못했습니다.'))
+                next(button for button in window.findChildren(QPushButton) if button.text() == '▼').click()
+                assert window.page.value() == 2
+                next(button for button in window.findChildren(QPushButton) if button.text() == '▲').click()
+                assert window.page.value() == 1
                 # Check the same JPEG decoder and editor modules used after an
                 # update. All input/output remains inside this synthetic probe.
                 from PIL import Image, ImageDraw

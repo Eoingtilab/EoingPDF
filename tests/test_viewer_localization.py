@@ -4,6 +4,8 @@ import pytest
 import pymupdf as pdf
 from PySide6.QtWidgets import QApplication, QPushButton, QMessageBox
 from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtCore import Qt
+from PySide6.QtTest import QTest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from eoingpdf.localization import install_language
@@ -65,3 +67,65 @@ def test_translated_viewer_preserves_fit_zoom_and_page_controls(tmp_path, monkey
         install_language(app, previous)
         app.setStyleSheet(previous_style)
         app.setFont(previous_font)
+
+
+@pytest.mark.parametrize('locale,previous_tip,next_tip', [
+    ('ko-KR', '이전 페이지', '다음 페이지'),
+    ('en-US', 'Previous page', 'Next page'),
+    ('ja-JP', '前のページ', '次のページ'),
+])
+def test_page_arrows_follow_document_direction_and_keyboard(tmp_path, locale, previous_tip, next_tip):
+    """Reader arrows follow page order rather than numeric spinbox conventions."""
+    app = QApplication.instance()
+    previous_locale = getattr(app, 'eoing_locale', 'ko-KR')
+    path = tmp_path / 'navigation-23-pages.pdf'
+    with pdf.open() as document:
+        for number in range(1, 24):
+            document.new_page().insert_text((72, 72), f'Page {number}')
+        document.save(path)
+    original = path.read_bytes()
+    install_language(app, locale)
+    viewer = PdfViewer(path)
+    try:
+        viewer.show()
+        viewer.activateWindow()
+        app.processEvents()
+        up = next(button for button in viewer.findChildren(QPushButton) if button.text() == '▲')
+        down = next(button for button in viewer.findChildren(QPushButton) if button.text() == '▼')
+        assert up.toolTip() == previous_tip
+        assert down.toolTip() == next_tip
+
+        viewer.page.setValue(16)
+        QTest.mouseClick(down, Qt.LeftButton)
+        assert viewer.page.value() == 17
+        QTest.mouseClick(up, Qt.LeftButton)
+        assert viewer.page.value() == 16
+
+        # Mouse controls and the established document shortcuts agree.
+        viewer.next.click()
+        assert viewer.page.value() == 17
+        viewer.previous.click()
+        assert viewer.page.value() == 16
+        QTest.keyClick(viewer, Qt.Key_PageDown)
+        assert viewer.page.value() == 17
+        QTest.keyClick(viewer, Qt.Key_PageUp)
+        assert viewer.page.value() == 16
+
+        viewer.page.setValue(1)
+        QTest.mouseClick(up, Qt.LeftButton)
+        QTest.keyClick(viewer, Qt.Key_PageUp)
+        assert viewer.page.value() == 1
+        QTest.mouseClick(down, Qt.LeftButton)
+        assert viewer.page.value() == 2
+        viewer.page.setValue(23)
+        QTest.mouseClick(down, Qt.LeftButton)
+        QTest.keyClick(viewer, Qt.Key_PageDown)
+        assert viewer.page.value() == 23
+        QTest.mouseClick(up, Qt.LeftButton)
+        assert viewer.page.value() == 22
+        assert viewer.canvas.pixmap() is not None and not viewer.canvas.pixmap().isNull()
+        assert not viewer.dirty and viewer.path == path
+        assert path.read_bytes() == original
+    finally:
+        viewer.close()
+        install_language(app, previous_locale)

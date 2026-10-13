@@ -38,9 +38,9 @@ QTest.qWait(150)
 assert abs(viewer.canvas.width() - (viewer.scroll.viewport().width() - 30)) <= 2
 up = next(b for b in viewer.findChildren(QPushButton) if b.text() == '▲')
 down = next(b for b in viewer.findChildren(QPushButton) if b.text() == '▼')
-QTest.mouseClick(down, Qt.LeftButton)
-assert viewer.page.value() == 1
 QTest.mouseClick(up, Qt.LeftButton)
+assert viewer.page.value() == 1
+QTest.mouseClick(down, Qt.LeftButton)
 assert viewer.page.value() == 2
 box = QMessageBox()
 box.setStandardButtons(QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel)

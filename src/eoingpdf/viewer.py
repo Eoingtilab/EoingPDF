@@ -97,7 +97,7 @@ class PdfViewer(QDialog):
         navigation.addWidget(self.page)
         step_controls = QVBoxLayout()
         step_controls.setSpacing(0)
-        for text, delta in [('▲', 1), ('▼', -1)]:
+        for text, delta in [('▲', -1), ('▼', 1)]:
             step = QPushButton(text)
             step.setAutoDefault(False)
             step.setFixedSize(28, 20)
