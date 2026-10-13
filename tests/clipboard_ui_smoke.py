@@ -38,7 +38,7 @@ QTest.qWait(200)
 with patch('eoingpdf.license_ui.ensure_license', return_value=True), \
      patch('eoingpdf.clipboard_tools.copy_table') as copy_table, \
      patch('eoingpdf.clipboard_tools.copy_page') as copy_page:
-    QTest.mouseClick(viewer.table_copy_button, Qt.LeftButton)
+    viewer.table_copy_button.trigger()
     assert viewer.canvas.selecting
     sx, sy = viewer.canvas.width() / 400, viewer.canvas.height() / 300
     start = QPoint(round(40 * sx), round(40 * sy))
@@ -50,9 +50,9 @@ with patch('eoingpdf.license_ui.ensure_license', return_value=True), \
     assert copy_table.call_count == 1
     assert copy_table.call_args.args[0] == [['A', 'B'], ['1', '2']]
     assert '2행' in viewer.status.text(), repr(viewer.status.text())
-    QTest.mouseClick(viewer.copy_image_button, Qt.LeftButton)
+    viewer.copy_image_button.trigger()
     assert copy_page.call_count == 1
     assert '300DPI' in viewer.status.text()
 viewer.close()
-print('PASS: actual Qt table drag and page-copy button; clipboard left untouched')
+print('PASS: actual Qt table drag and page-copy action; clipboard left untouched')
 

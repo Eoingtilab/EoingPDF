@@ -21,6 +21,7 @@ class DraftStamp:
     width: float
     page_width: float
     page_height: float
+    image_key: bytes = b''
 
     def rect(self):
         return QRectF(self.x, self.y, self.width, self.width / self.aspect)
@@ -83,6 +84,7 @@ class StampOverlay(QWidget):
             mode = 'move'
         self.editor.select(stamp)
         if stamp is not None:
+            self.editor.begin_gesture('직인 크기 조절' if mode == 'resize' else '직인 이동')
             sx, sy = self.scale()
             self.drag = (mode, QPointF(position.x() / sx, position.y() / sy), stamp.x, stamp.y, stamp.width)
             self.auto_scroll.start()
@@ -104,7 +106,7 @@ class StampOverlay(QWidget):
                 stamp.width = max(UNIT, min(stamp.width, stamp.page_width - x,
                                             (stamp.page_height - y) * stamp.aspect))
             stamp.fit()
-            self.editor.changed()
+            self.editor.changed(record=False)
             event.accept()
         else:
             resizing = stamp in self.editor.visible_stamps() and self.handle(stamp).contains(event.position())
@@ -114,6 +116,7 @@ class StampOverlay(QWidget):
     def mouseReleaseEvent(self, event):
         self.auto_scroll.stop()
         self.drag = None
+        self.editor.finish_gesture()
         event.accept()
 
     def scroll_drag(self):
@@ -139,6 +142,7 @@ class StampOverlay(QWidget):
     def hideEvent(self, event):
         self.auto_scroll.stop()
         self.drag = None
+        self.editor.finish_gesture()
         super().hideEvent(event)
 
 
@@ -149,6 +153,7 @@ class StampEditor:
         self.selected = None
         self.image_cache = {}
         self.image_bytes = 0
+        self.gesture_label = None
         self.overlay = StampOverlay(self)
         self.panel = QWidget(viewer)
         row = QHBoxLayout(self.panel)
@@ -195,12 +200,19 @@ class StampEditor:
         stream, aspect = prepare_image(path)
         identity = hashlib.sha256(stream).digest()
         if identity not in self.image_cache:
-            pixmap = QPixmap()
-            if not pixmap.loadFromData(stream, 'PNG'):
-                raise ValueError(tr('미리보기를 만들 수 없습니다.'))
-            pixmap = pixmap.scaled(1600, 1600, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            history = getattr(self.viewer, 'edit_history', None)
+            previous = history.find_image(identity) if history else None
+            if previous:
+                stream, pixmap = previous.stream, previous.pixmap
+            else:
+                pixmap = QPixmap()
+                if not pixmap.loadFromData(stream, 'PNG'):
+                    raise ValueError(tr('미리보기를 만들 수 없습니다.'))
+                pixmap = pixmap.scaled(1600, 1600, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             size = len(stream) + pixmap.width() * pixmap.height() * 4
-            if self.image_bytes + size > 96 * 1024 * 1024:
+            retained = history.image_bytes(self.snapshot()) if history else self.image_bytes
+            increment = 0 if previous else size
+            if retained + increment > 96 * 1024 * 1024:
                 raise ValueError(tr('이미지 메모리 한도에 도달했습니다. 저장한 뒤 계속해 주세요.'))
             self.image_cache[identity] = (stream, pixmap)
             self.image_bytes += size
@@ -211,12 +223,13 @@ class StampEditor:
         center_y = center.y() * height / max(1, self.viewer.canvas.height())
         stamp_width = min(30 * UNIT, width / 3, height * aspect / 3)
         stamp = DraftStamp(self.viewer.pages[self.viewer.page.value() - 1], stream, pixmap, aspect,
-                           center_x - stamp_width / 2, center_y - stamp_width / aspect / 2, stamp_width, width, height)
+                           center_x - stamp_width / 2, center_y - stamp_width / aspect / 2, stamp_width, width, height, identity)
         stamp.fit()
+        self.viewer.begin_edit()
         self.stamps.append(stamp)
         self.viewer.table_copy_button.setChecked(False)
         self.select(stamp)
-        self.changed()
+        self.changed('직인 추가')
 
     def visible_stamps(self):
         page = self.viewer.pages[self.viewer.page.value() - 1]
@@ -235,23 +248,59 @@ class StampEditor:
 
     def resize_selected(self, value):
         if self.selected:
+            self.viewer.begin_edit()
             self.selected.width = value * UNIT
             self.selected.fit()
-            self.changed()
+            self.changed('직인 크기 조절')
 
     def remove_selected(self):
         if self.selected is not None:
+            self.viewer.begin_edit()
             self.stamps.remove(self.selected)
             self.select(None)
-            self.changed()
+            self.changed('직인 삭제')
 
-    def changed(self):
-        self.viewer.dirty = bool(self.stamps or self.viewer.preview_owners) or self.viewer.pages != list(range(self.viewer.source_count))
-        self.viewer.save_button.setEnabled(self.viewer.dirty)
-        self.viewer.setWindowTitle(tr('* {v0} · 어잉PDF', v0=self.viewer.original_path.name) if self.viewer.dirty else
-                                   tr('{v0} · 어잉PDF', v0=self.viewer.original_path.name))
+    def changed(self, label='', *, record=True):
         self.select(self.selected)
         self.refresh()
+        if record:
+            self.viewer.record_edit(label or '직인 편집')
+        else:
+            self.viewer.update_dirty_state()
+
+    def begin_gesture(self, label):
+        self.viewer.begin_edit()
+        self.gesture_label = label
+
+    def finish_gesture(self):
+        if self.gesture_label:
+            label, self.gesture_label = self.gesture_label, None
+            self.viewer.record_edit(label)
+
+    def snapshot(self):
+        from .edit_history import StampState
+        return tuple(StampState(stamp.page, stamp.stream, stamp.pixmap,
+                                stamp.image_key, stamp.aspect,
+                                stamp.x, stamp.y, stamp.width, stamp.page_width, stamp.page_height)
+                     for stamp in self.stamps)
+
+    def restore(self, states, selected_index=-1):
+        self.gesture_label = None
+        self.overlay.drag = None
+        self.overlay.auto_scroll.stop()
+        self.stamps = [DraftStamp(stamp.page, stamp.stream, stamp.pixmap, stamp.aspect,
+                                  stamp.x, stamp.y, stamp.width, stamp.page_width, stamp.page_height, stamp.image_key)
+                       for stamp in states]
+        self.image_cache = {stamp.image_key: (stamp.stream, stamp.pixmap) for stamp in states}
+        self.image_bytes = sum(len(stream) + pixmap.width() * pixmap.height() * 4
+                               for stream, pixmap in self.image_cache.values())
+        self.select(self.stamps[selected_index] if 0 <= selected_index < len(self.stamps) else None)
+        self.refresh()
+
+    def release_unused_images(self):
+        self.image_cache = {stamp.image_key: (stamp.stream, stamp.pixmap) for stamp in self.stamps}
+        self.image_bytes = sum(len(stream) + pixmap.width() * pixmap.height() * 4
+                               for stream, pixmap in self.image_cache.values())
 
     def refresh(self):
         self.stamps[:] = [stamp for stamp in self.stamps if stamp.page in self.viewer.pages]
@@ -271,6 +320,7 @@ class StampEditor:
                                stamp.x / UNIT, stamp.y / UNIT, stamp.width / UNIT)
 
     def reset(self):
+        self.gesture_label = None
         self.stamps.clear()
         self.image_cache.clear()
         self.image_bytes = 0

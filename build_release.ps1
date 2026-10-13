@@ -58,6 +58,8 @@ if ($LASTEXITCODE -ne 0) { throw '암호 뷰어 테스트 실패' }
 if ($LASTEXITCODE -ne 0) { throw '도장 입력 UI 테스트 실패' }
 & $pythonExe tests\editor_ui_smoke.py
 if ($LASTEXITCODE -ne 0) { throw '직인·확장 판서 Windows UI 테스트 실패' }
+& $pythonExe tests\workspace_ui_smoke.py
+if ($LASTEXITCODE -ne 0) { throw 'PDF 작업 공간·도구 검색·변경 내역 UI 테스트 실패' }
 if ($env:EOING_SKIP_NATIVE -ne '1') {
     & .\native\build_hwp.cmd
     if ($LASTEXITCODE -ne 0) { throw 'Hancom native guard build failed' }

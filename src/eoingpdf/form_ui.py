@@ -163,7 +163,7 @@ class FormDialog(QDialog):
         if self.success:
             if self.preview_mode:
                 try:
-                    self.parentWidget().apply_preview(self.target, '', self.preview_owner)
+                    self.parentWidget().apply_preview(self.target, '', self.preview_owner, label='양식 입력')
                     self.preview_owner = None
                 except Exception as error:
                     self.preview_owner.cleanup()

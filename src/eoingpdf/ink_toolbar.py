@@ -55,6 +55,8 @@ class InkToolbar(QWidget):
         self.font_size.valueChanged.connect(lambda value: setattr(slides.canvas, 'text_size', value))
         row.addWidget(self.font_size)
         self.fill = QCheckBox(tr('도형 채우기'))
+        from .sdk_theme import apply_style
+        apply_style(self.fill, 'QCheckBox {color:#e5ecfa;}')
         self.fill.toggled.connect(lambda checked: setattr(slides.canvas, 'shape_fill', checked))
         row.addWidget(self.fill)
         for key, label, callback in (('image', tr('이미지 넣기'), self.choose_image),

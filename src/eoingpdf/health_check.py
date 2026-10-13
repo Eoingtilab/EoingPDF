@@ -51,6 +51,14 @@ def main(arguments):
                 with pdf.open(source) as probe:
                     editor.apply(probe, [0])
                     assert probe[0].get_images()
+                assert window.undo_edit() and not editor.stamps and not window.dirty
+                assert window.redo_edit() and len(editor.stamps) == 1 and window.dirty
+                from .tool_browser import ToolBrowser
+                tools = ToolBrowser(window)
+                tools.search.setText('watermark')
+                assert tools.results.count() == 2
+                tools.reject()
+                tools.deleteLater()
                 from .viewer import SlideShow
                 slides = SlideShow(source)
                 try:

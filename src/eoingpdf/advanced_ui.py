@@ -24,7 +24,12 @@ class AdvancedDialog(QDialog):
         self.tool = QComboBox()
         for key, (name, _) in TOOLS.items():
             self.tool.addItem(tr(name), key)
-        layout.addWidget(self.tool)
+        self.tool.hide()
+        self.tool_button = QPushButton()
+        self.tool_button.setAutoDefault(False)
+        self.tool_button.setToolTip(tr('다른 도구를 검색하거나 작업별로 선택합니다.'))
+        self.tool_button.clicked.connect(self.choose_tool)
+        layout.addWidget(self.tool_button)
         self.description = QLabel()
         self.description.setWordWrap(True)
         layout.addWidget(self.description)
@@ -36,6 +41,13 @@ class AdvancedDialog(QDialog):
         row.addWidget(self.source, 1)
         row.addWidget(self.pick)
         layout.addLayout(row)
+        if hasattr(parent, 'apply_preview'):
+            self.source.hide()
+            self.pick.hide()
+            current = QLabel(tr('대상 문서: {name}', name=parent.original_path.name))
+            current.setTextFormat(Qt.PlainText)
+            current.setWordWrap(True)
+            layout.addWidget(current)
         form_body = QWidget()
         form = self.form = QFormLayout(form_body)
         form.setContentsMargins(0, 0, 8, 0)
@@ -132,9 +144,9 @@ class AdvancedDialog(QDialog):
         self.copying = QCheckBox(tr('텍스트 복사 허용'))
         layout.addWidget(self.printing)
         layout.addWidget(self.copying)
-        notice = QLabel(tr('원본은 보존하며 새 파일로 저장합니다. 암호 설정 이외의 도구는 암호 없는 사본을 만듭니다. 암호는 저장하거나 전송하지 않습니다.'))
-        notice.setWordWrap(True)
-        layout.addWidget(notice)
+        self.notice = QLabel()
+        self.notice.setWordWrap(True)
+        layout.addWidget(self.notice)
         self.progress = QProgressBar()
         layout.addWidget(self.progress)
         self.status = QLabel(tr('PDF와 도구를 선택해 주세요.'))
@@ -146,7 +158,8 @@ class AdvancedDialog(QDialog):
         self.compare_button.hide()
         self.compare_button.clicked.connect(self.compare_saved)
         row.addWidget(self.compare_button)
-        self.preview_button = QPushButton(tr('미리보기 적용'))
+        self.preview_button = QPushButton(tr('현재 PDF에 적용'))
+        self.preview_button.setObjectName('primary')
         self.preview_button.clicked.connect(lambda: self.start(preview=True))
         row.addWidget(self.preview_button)
         self.save = QPushButton(tr('새 PDF로 저장'))
@@ -167,10 +180,25 @@ class AdvancedDialog(QDialog):
         finally:
             self.size_presets.blockSignals(previous)
 
+    def choose_tool(self):
+        from .tool_browser import ToolBrowser
+        dialog = ToolBrowser(self, allowed_keys=set(TOOLS))
+        selected = []
+        dialog.tool_selected.connect(selected.append)
+        if dialog.exec() == QDialog.Accepted and selected:
+            self.tool.setCurrentIndex(self.tool.findData(selected[0]))
+
     def changed(self):
         key = self.tool.currentData()
-        self.preview_button.setVisible(hasattr(self.parentWidget(), 'apply_preview') and
-                                       key not in {'split_ranges', 'split_groups', 'split_toc', 'svg', 'dxf', 'markdown'})
+        in_viewer = hasattr(self.parentWidget(), 'apply_preview')
+        can_preview = in_viewer and key not in {'split_ranges', 'split_groups', 'split_toc', 'svg', 'dxf', 'markdown'}
+        self.tool_button.setText(tr(TOOLS[key][0]) + '  ▾')
+        self.setWindowTitle(tr('어잉PDF · {tool}', tool=tr(TOOLS[key][0])))
+        self.preview_button.setVisible(can_preview)
+        self.save.setVisible(not can_preview)
+        self.preview_button.setDefault(can_preview)
+        self.save.setDefault(not can_preview)
+        self.notice.setText(tr('현재 화면에 적용한 뒤 실행 취소로 되돌릴 수 있습니다. 마지막에 사본 저장을 누르세요. 암호 설정 이외의 도구는 암호 없는 사본을 만듭니다.') if can_preview else tr('원본은 보존하며 새 파일로 저장합니다. 암호 설정 이외의 도구는 암호 없는 사본을 만듭니다. 암호는 저장하거나 전송하지 않습니다.'))
         self.preview_button.setEnabled(True)
         self.replace_choice.setVisible(key == 'replace_image')
         self.replace_choice.setEnabled(key == 'replace_image')
@@ -201,7 +229,7 @@ class AdvancedDialog(QDialog):
             field.setEnabled(visible)
             self.form.labelForField(field).setVisible(visible)
         self.save.setText(tr('분할 ZIP 저장') if key in {'split_ranges', 'split_groups', 'split_toc'} else
-                          tr('SVG ZIP 저장') if key == 'svg' else tr('Markdown 저장') if key == 'markdown' else tr('새 PDF로 저장'))
+                          tr('SVG ZIP 저장') if key == 'svg' else tr('DXF ZIP 저장') if key == 'dxf' else tr('Markdown 저장') if key == 'markdown' else tr('새 PDF로 저장'))
 
     def reset_image_choice(self):
         self.replace_selection = (0, '')
@@ -291,6 +319,7 @@ class AdvancedDialog(QDialog):
                        replace_xref=self.replace_selection[0], replace_digest=self.replace_selection[1], form_review=form_review)
         self.worker = TransformWorker(options, self)
         self.preview_button.setEnabled(False)
+        self.tool_button.setEnabled(False)
         self.worker.progress.connect(self.progress.setValue)
         self.worker.result.connect(self.completed)
         self.worker.finished.connect(self.finished_job)
@@ -310,6 +339,7 @@ class AdvancedDialog(QDialog):
             field.clear()
         for widget in (self.tool, self.pick, self.save, self.password):
             widget.setEnabled(True)
+        self.tool_button.setEnabled(True)
         self.changed()
         self.cancel.setText(tr('닫기'))
         self.compare_button.setEnabled(bool(self.compare_pair))
@@ -317,7 +347,8 @@ class AdvancedDialog(QDialog):
             owner, self.preview_owner = self.preview_owner, None
             try:
                 if self.preview_success:
-                    self.parentWidget().apply_preview(self.preview_target, self.preview_password, owner)
+                    self.parentWidget().apply_preview(self.preview_target, self.preview_password, owner,
+                                                      label=TOOLS[self.tool.currentData()][0])
                     self.pending_pair = self.compare_pair = None
                     self.preview_password = ''
                     self.accept()

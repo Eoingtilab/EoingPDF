@@ -62,6 +62,10 @@ class PdfViewer(QDialog):
         self.stamp_editor = None
         self.visible_page_size = (1, 1)
         self.preview_owners = []
+        self.edit_history = None
+        self._history_restoring = False
+        self.materialized_path = None
+        self._materialized_state = None
         self.original_path = self.path
         self.thumbnail_mode = True
         self.dirty = False
@@ -72,40 +76,12 @@ class PdfViewer(QDialog):
         self.setMinimumSize(680, 480)
         apply_style(self, 'QDialog {background:#f7f9fc;} QScrollArea {background:#e8edf5;border:0;} QListWidget {background:#eef2f8;border:0;color:#263246;} QListWidget::item:selected {background:#dbe6ff;border:2px solid #5176ec;border-radius:6px;} QSpinBox, QComboBox {background:white;color:#263246;border:1px solid #dae2f0;border-radius:6px;padding:7px;min-width:75px;}')
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 10)
+        layout.setSpacing(8)
         from .capture_ui import CaptureChip
         self.capture_chip = CaptureChip(self)
         layout.addWidget(self.capture_chip)
-        bar = QHBoxLayout()
         navigation = QHBoxLayout()
-        open_button = QPushButton(tr('PDF 열기'))
-        open_button.clicked.connect(self.choose_pdf)
-        delete_button = QPushButton(tr('페이지 삭제'))
-        delete_button.clicked.connect(self.remove_pages)
-        self.move_up_button = QPushButton(tr('위로'))
-        self.move_up_button.setToolTip(tr('현재 페이지를 한 칸 앞으로 이동'))
-        self.move_up_button.clicked.connect(lambda: self.move_current_page(-1))
-        self.move_down_button = QPushButton(tr('아래로'))
-        self.move_down_button.setToolTip(tr('현재 페이지를 한 칸 뒤로 이동'))
-        self.move_down_button.clicked.connect(lambda: self.move_current_page(1))
-        self.more_features_button = QPushButton(tr('더 많은 기능'))
-        self.more_features_button.setToolTip(tr('PDF 보조 기능을 한곳에서 선택합니다.'))
-        self.more_features_menu = QMenu(self.more_features_button)
-        self.more_features_button.setMenu(self.more_features_menu)
-        slideshow_button = QPushButton(tr('슬라이드쇼 · F5'))
-        slideshow_button.clicked.connect(self.start_slideshow)
-        self.stamp_button = QPushButton(tr('직인 및 서명 넣기'))
-        self.stamp_button.setObjectName('insertStamp')
-        self.stamp_button.clicked.connect(self.insert_stamp)
-        bar.addWidget(open_button)
-        bar.addWidget(delete_button)
-        bar.addWidget(self.move_up_button)
-        bar.addWidget(self.move_down_button)
-        bar.addWidget(slideshow_button)
-        bar.addWidget(self.stamp_button)
-        bar.addWidget(self.more_features_button)
-        self.save_button = QPushButton(tr('저장'))
-        self.save_button.setEnabled(False)
-        self.save_button.clicked.connect(self.save_changes)
         self.previous = QPushButton(tr('‹ 이전'))
         self.next = QPushButton(tr('다음 ›'))
         self.page = QSpinBox()
@@ -141,18 +117,6 @@ class PdfViewer(QDialog):
         print_menu.aboutToShow.connect(lambda: self.sniffer.start(self.path, trigger='print'))
         self.print_button.setMenu(print_menu)
         navigation.addWidget(self.print_button)
-        bar.addStretch()
-        bar.addWidget(self.save_button)
-        self.close_button = QPushButton(tr('닫기'))
-        self.close_button.clicked.connect(self.close)
-        bar.addWidget(self.close_button)
-        from .license_ui import settings
-        license_button = QPushButton(tr('라이선스'))
-        license_button.clicked.connect(lambda: settings(self))
-        from .updates import show_update_status
-        update_button = QPushButton(tr('업데이트'))
-        update_button.clicked.connect(lambda: show_update_status(self))
-        layout.addLayout(bar)
         from .sniffer_ui import MicroSniffer
         self.sniffer = MicroSniffer(self)
         self.sniffed_path = None
@@ -170,6 +134,9 @@ class PdfViewer(QDialog):
         self.canvas.selected.connect(self.copy_selected_table)
         self.canvas.setAlignment(Qt.AlignCenter)
         self.scroll.setWidget(self.canvas)
+        from .viewer_workspace import WorkspaceHeader
+        self.workspace_header = WorkspaceHeader(self)
+        layout.addWidget(self.workspace_header)
         self.fit_timer = QTimer(self)
         self.fit_timer.setSingleShot(True)
         self.fit_timer.timeout.connect(self.render)
@@ -199,26 +166,22 @@ class PdfViewer(QDialog):
         body.addWidget(self.scroll, 1)
         layout.addLayout(body, 1)
         layout.addLayout(navigation)
-        self.status = QLabel(tr('읽기 전용 · 원본은 수정하지 않습니다'))
+        self.status = QLabel(tr('원본은 수정하지 않습니다'))
         self.feedback_timer = QTimer(self)
         self.feedback_timer.setSingleShot(True)
         self.feedback_timer.timeout.connect(self.restore_status)
         footer = QHBoxLayout()
         self.status.setWordWrap(True)
         footer.addWidget(self.status, 1)
-        self.copy_image_button = QPushButton(tr('페이지 이미지 복사'))
-        self.copy_image_button.setToolTip(tr('현재 페이지를 300DPI로 복사'))
-        self.copy_image_button.clicked.connect(self.copy_page_image)
-        footer.addWidget(self.copy_image_button)
-        self.table_copy_button = QPushButton(tr('표 드래그 복사'))
-        self.table_copy_button.setCheckable(True)
-        self.table_copy_button.toggled.connect(self.canvas.set_selecting)
-        footer.addWidget(self.table_copy_button)
-        self.form_button = QPushButton(tr('양식 입력'))
-        self.form_button.clicked.connect(self.edit_form)
-        footer.addWidget(self.form_button)
-        footer.addWidget(license_button)
-        footer.addWidget(update_button)
+        from .license_ui import settings
+        from .updates import show_update_status
+        self.settings_button = QPushButton(tr('설정·도움말'))
+        self.settings_button.setAutoDefault(False)
+        settings_menu = QMenu(self.settings_button)
+        settings_menu.addAction(tr('라이선스')).triggered.connect(lambda: settings(self))
+        settings_menu.addAction(tr('업데이트')).triggered.connect(lambda: show_update_status(self))
+        self.settings_button.setMenu(settings_menu)
+        footer.addWidget(self.settings_button)
         layout.addLayout(footer)
         self.previous.clicked.connect(lambda: self.page.setValue(self.page.value() - 1))
         self.next.clicked.connect(lambda: self.page.setValue(self.page.value() + 1))
@@ -230,6 +193,7 @@ class PdfViewer(QDialog):
         self.update_more_features()
         self.reset_thumbnails()
         self.render()
+        self.reset_edit_history()
         QShortcut(QKeySequence('F5'), self).activated.connect(self.start_slideshow)
         QShortcut(QKeySequence('Shift+F5'), self).activated.connect(self.start_slideshow)
         QShortcut(QKeySequence('Ctrl+S'), self).activated.connect(self.save_changes)
@@ -238,17 +202,18 @@ class PdfViewer(QDialog):
         from .license_ui import ensure_license
         if not ensure_license(self):
             return
-        if self.dirty:
-            try:
-                self.stage_current_preview()
-            except Exception as error:
-                QMessageBox.warning(self, tr('미리보기 실패'), str(error))
-                return
         if self.slideshow is not None and self.slideshow.isVisible():
             self.slideshow.raise_()
             self.slideshow.activateWindow()
             return
-        self.slideshow = SlideShow(self.path, self.page.value() - 1, self, self.pages, password=self.password)
+        try:
+            source = self.stage_current_preview(display=False)
+        except Exception as error:
+            QMessageBox.warning(self, tr('미리보기 실패'), str(error))
+            return
+        pages = self.pages if source == self.path else list(range(self.count))
+        self.slideshow = SlideShow(source, self.page.value() - 1, self, pages, password=self.password)
+        self.slideshow.viewer_draft_path = source
         self.slideshow.setWindowModality(Qt.WindowModal)
         slides = self.slideshow
         slides.finished.connect(lambda _: self.finish_slideshow(slides))
@@ -275,8 +240,9 @@ class PdfViewer(QDialog):
             return
         try:
             from .clipboard_tools import copy_page
-            with open_pdf(self.path, self.password) as doc:
-                copy_page(doc[self.pages[self.page.value() - 1]], int(self.winId()))
+            source = self.stage_current_preview(display=False)
+            with open_pdf(source, self.password) as doc:
+                copy_page(doc[self.page.value() - 1], int(self.winId()))
             self.show_feedback(tr('300DPI 페이지 이미지를 복사했습니다.'))
         except Exception as error:
             self.show_feedback(tr('이미지 복사 실패: {error}', error=tr(str(error))))
@@ -311,23 +277,30 @@ class PdfViewer(QDialog):
 
     def update_more_features(self):
         self.more_features_menu.clear()
-        from .advanced import TOOLS
-        for key, (name, _) in TOOLS.items():
-            action = self.more_features_menu.addAction(tr(name))
-            action.triggered.connect(lambda checked=False, tool=key: self.diagnostic_action(tool))
+        self.recommended_name_action.setVisible(bool(self.suggested_name))
+        from .tool_catalog import CATEGORIES, find_tools
+        for group in CATEGORIES:
+            menu = self.more_features_menu.addMenu(tr(group.title))
+            for entry in find_tools(category=group.key):
+                action = menu.addAction(tr(entry.title))
+                action.triggered.connect(lambda checked=False, tool=entry.key: self.diagnostic_action(tool))
         if self.suggested_name:
             self.more_features_menu.addSeparator()
             suggested_name_action = self.more_features_menu.addAction(tr('제목으로 파일명 추천'))
             suggested_name_action.triggered.connect(lambda: self.diagnostic_action('rename'))
-        self.more_features_menu.addSeparator()
-        self.sidebar_mode_action = self.more_features_menu.addAction('')
         self.update_sidebar_mode_action()
-        self.sidebar_mode_action.triggered.connect(self.toggle_sidebar_mode)
-        self.more_features_menu.addSeparator()
-        presentation = self.more_features_menu.addAction(tr('슬라이드쇼 · F5'))
-        presentation.triggered.connect(self.start_slideshow)
-        table = self.more_features_menu.addAction(tr('표 드래그 복사'))
-        table.triggered.connect(lambda: self.table_copy_button.setChecked(True))
+
+    def show_all_tools(self, category='all'):
+        from .tool_browser import ToolBrowser
+        dialog = ToolBrowser(self, category=category if isinstance(category, str) else 'all')
+        selected = []
+        dialog.tool_selected.connect(selected.append)
+        if dialog.exec() == QDialog.Accepted and selected:
+            self.diagnostic_action(selected[0])
+
+    def update_edit_history(self):
+        if hasattr(self, 'workspace_header'):
+            self.workspace_header.refresh_history()
 
     def diagnostic_action(self, action):
         if action == 'stamp':
@@ -338,19 +311,24 @@ class PdfViewer(QDialog):
                 self.save_changes(suggested_name=name)
         elif action == 'presentation':
             self.start_slideshow()
+        elif action == 'form':
+            self.edit_form()
+        elif action == 'copy_image':
+            self.copy_page_image()
+        elif action == 'viewmode':
+            self.toggle_sidebar_mode()
         elif action == 'table':
             self.table_copy_button.setChecked(True)
             self.show_feedback(tr('복사할 표 전체를 마우스로 드래그해 주세요.'))
         else:
-            if self.dirty:
-                try:
-                    self.stage_current_preview()
-                except Exception as error:
-                    QMessageBox.warning(self, tr('미리보기 실패'), str(error))
-                    return
+            try:
+                source = self.stage_current_preview(display=False)
+            except Exception as error:
+                QMessageBox.warning(self, tr('미리보기 실패'), str(error))
+                return
             from .advanced_ui import AdvancedDialog
             dialog = AdvancedDialog(self)
-            dialog.source.setText(str(self.path))
+            dialog.source.setText(str(source))
             dialog.password.setText(self.password)
             dialog.tool.setCurrentIndex(dialog.tool.findData(action))
             dialog.exec()
@@ -368,22 +346,18 @@ class PdfViewer(QDialog):
         from .license_ui import ensure_license
         if not ensure_license(self):
             return
-        if self.dirty:
-            try:
-                self.stage_current_preview()
-            except Exception as error:
-                QMessageBox.warning(self, tr('미리보기 실패'), str(error))
-                return
         try:
+            source = self.stage_current_preview(display=False)
             from .form_ui import FormDialog
-            dialog = FormDialog(self.path, self.pages[self.page.value() - 1], self, password=self.password)
+            page = self.pages[self.page.value() - 1] if source == self.path else self.page.value() - 1
+            dialog = FormDialog(source, page, self, password=self.password)
             dialog.saved.connect(self.load)
             dialog.exec()
         except Exception as error:
             QMessageBox.warning(self, tr('양식 입력 실패'), str(error))
 
     def finish_slideshow(self, slides):
-        if Path(slides.path) != self.path:
+        if Path(slides.path) not in (self.path, getattr(slides, 'viewer_draft_path', self.path)):
             self.load(slides.path, password=slides.password)
             self.page.setValue(min(slides.index + 1, self.count))
         else:
@@ -435,6 +409,7 @@ class PdfViewer(QDialog):
         target = row + delta
         if target < 0 or target >= self.count:
             return
+        self.begin_edit()
         page_id = self.pages.pop(row)
         self.pages.insert(target, page_id)
         self._mark_page_edit()
@@ -443,6 +418,7 @@ class PdfViewer(QDialog):
         self.page.blockSignals(False)
         self.reset_thumbnails()
         self.render()
+        self.record_edit('페이지 순서 변경')
 
     def apply_sidebar_order(self, payload):
         order, current = payload
@@ -452,6 +428,7 @@ class PdfViewer(QDialog):
             return
         if order == self.pages:
             return
+        self.begin_edit()
         self.pages = order
         self._mark_page_edit()
         if current in self.pages:
@@ -460,6 +437,7 @@ class PdfViewer(QDialog):
             self.page.blockSignals(False)
         self.reset_thumbnails()
         self.render()
+        self.record_edit('페이지 순서 변경')
 
     def fill_thumbnails(self):
         if not self.thumbnail_mode:
@@ -512,7 +490,7 @@ class PdfViewer(QDialog):
             return
         if not self.confirm_leave():
             return
-        path, _ = QFileDialog.getOpenFileName(self, tr('PDF 열기'), str(self.path.parent), 'PDF (*.pdf)')
+        path, _ = QFileDialog.getOpenFileName(self, tr('PDF 열기'), str(self.original_path.parent), 'PDF (*.pdf)')
         if path:
             try:
                 self.load(path)
@@ -522,6 +500,9 @@ class PdfViewer(QDialog):
                 QMessageBox.warning(self, tr('PDF 열기 실패'), str(error))
 
     def load(self, path, password='', *, preview=False):
+        if not preview and any(Path(path).resolve().is_relative_to(Path(owner.name).resolve())
+                               for owner in self.preview_owners):
+            raise ValueError(tr('미리보기 임시 PDF는 새 원본으로 열 수 없습니다. 사본을 저장한 뒤 열어 주세요.'))
         password, count = unlock_viewer_pdf(path, self, password)
         if self.stamp_editor is not None:
             self.stamp_editor.reset()
@@ -531,6 +512,7 @@ class PdfViewer(QDialog):
         if not preview:
             self.original_path = self.path
             self.sniffer.stop()
+            self.edit_history = None
             self.clear_previews()
         self.source_count = count
         self.sniffed_path = None
@@ -548,13 +530,176 @@ class PdfViewer(QDialog):
         self.page.blockSignals(False)
         self.reset_thumbnails()
         self.render()
+        if not preview:
+            self.reset_edit_history()
+
+    def capture_edit_state(self):
+        from .edit_history import DraftState
+        editor = self.stamp_editor
+        stamps = editor.snapshot() if editor else ()
+        selected = next((index for index, stamp in enumerate(editor.stamps)
+                         if stamp is editor.selected), -1) if editor else -1
+        return DraftState(self.path, self.password, self.source_count, tuple(self.pages),
+                          stamps, selected, self.page.value(), self.dirty)
+
+    def notify_edit_history(self):
+        if hasattr(self, 'update_edit_history'):
+            self.update_edit_history()
+
+    def reset_edit_history(self):
+        from .edit_history import EditHistory
+        self.edit_history = EditHistory(self.capture_edit_state(), '문서 열기')
+        self.notify_edit_history()
+
+    def begin_edit(self):
+        if self.edit_history and not self._history_restoring:
+            self.edit_history.sync_presentation(self.capture_edit_state())
+
+    def update_dirty_state(self):
+        if self.edit_history:
+            self.dirty = self.capture_edit_state() != self.edit_history.baseline
+        else:
+            self.dirty = bool(self.stamp_editor and self.stamp_editor.stamps) or self.pages != list(range(self.source_count))
+        self.save_button.setEnabled(self.dirty)
+        self.setWindowTitle(tr('* {v0} · 어잉PDF', v0=self.original_path.name) if self.dirty else
+                            tr('{v0} · 어잉PDF', v0=self.original_path.name))
+        self.notify_edit_history()
+
+    def record_edit(self, label):
+        if self._history_restoring or self.edit_history is None:
+            return
+        self.update_dirty_state()
+        self.edit_history.push(self.capture_edit_state(), label)
+        self._materialized_state = None
+        self.collect_preview_owners()
+        self.notify_edit_history()
+        if not self.feedback_timer.isActive():
+            self.restore_status()
+
+    def collect_preview_owners(self):
+        paths = {self.path}
+        if self.materialized_path:
+            paths.add(self.materialized_path)
+        if self.edit_history:
+            paths.update(state.path for state in self.edit_history.retained_states)
+        retained = []
+        for owner in self.preview_owners:
+            if any(path.resolve().is_relative_to(Path(owner.name).resolve()) for path in paths):
+                retained.append(owner)
+            else:
+                try:
+                    owner.cleanup()
+                except OSError:
+                    retained.append(owner)  # Retry after the next edit / window close.
+        self.preview_owners[:] = retained
+        if self.stamp_editor:
+            self.stamp_editor.release_unused_images()
+
+    def _restore_edit_state(self, state):
+        # Validate before touching the current draft or changing the history cursor.
+        with open_pdf(state.path, state.password) as document:
+            if document.page_count != state.source_count or not state.pages or any(
+                    type(page) is not int or not 0 <= page < document.page_count for page in state.pages):
+                raise ValueError(tr('기록된 PDF 페이지를 복원할 수 없습니다. 현재 편집은 유지됩니다.'))
+            document[state.pages[max(0, min(state.page - 1, len(state.pages) - 1))]].get_pixmap(matrix=pdf.Matrix(.1, .1))
+        self._history_restoring = True
+        try:
+            self.path, self.password, self.source_count = state.path, state.password, state.source_count
+            self.pages, self.count = list(state.pages), len(state.pages)
+            self.search_hit = None
+            self.sniffer.stop()
+            self.sniffed_path = None
+            self.suggested_name = ''
+            self.page.blockSignals(True)
+            self.page.setRange(1, self.count)
+            self.page.setSuffix(f' / {self.count}')
+            self.page.setValue(max(1, min(state.page, self.count)))
+            self.page.blockSignals(False)
+            if state.stamps and self.stamp_editor is None:
+                from .stamp_editor import StampEditor
+                self.stamp_editor = StampEditor(self)
+            if self.stamp_editor:
+                self.stamp_editor.restore(state.stamps, state.selected_index)
+            self.dirty = state.dirty
+            self.save_button.setEnabled(self.dirty)
+            self.setWindowTitle(tr('* {v0} · 어잉PDF', v0=self.original_path.name) if self.dirty else
+                                tr('{v0} · 어잉PDF', v0=self.original_path.name))
+            self.reset_thumbnails()
+            self.render()
+            self.update_more_features()
+        finally:
+            self._history_restoring = False
+
+    def restore_history(self, position):
+        if self.stamp_editor:
+            self.stamp_editor.finish_gesture()
+        history = self.edit_history
+        if history is None or type(position) is not int or not 0 <= position < len(history.entries):
+            return False
+        if position == history.position:
+            return True
+        previous = self.capture_edit_state()
+        try:
+            self._restore_edit_state(history.entries[position].state)
+        except Exception as error:
+            if self.capture_edit_state() != previous:
+                self._restore_edit_state(previous)
+            QMessageBox.warning(self, tr('변경 복원 실패'), str(error))
+            return False
+        history.position = position
+        self.materialized_path = None
+        self._materialized_state = None
+        self.collect_preview_owners()
+        self.notify_edit_history()
+        self.show_feedback(tr('변경 내역을 복원했습니다: {operation}', operation=tr(history.entries[position].label)))
+        return True
+
+    def undo_edit(self):
+        if self.stamp_editor:
+            self.stamp_editor.finish_gesture()
+        if self.edit_history and self.edit_history.can_undo:
+            return self.restore_history(self.edit_history.position - 1)
+        return False
+
+    def redo_edit(self):
+        if self.stamp_editor:
+            self.stamp_editor.finish_gesture()
+        if self.edit_history and self.edit_history.can_redo:
+            return self.restore_history(self.edit_history.position + 1)
+        return False
+
+    def reset_edits(self):
+        if self.stamp_editor:
+            self.stamp_editor.finish_gesture()
+        if not self.edit_history or self.capture_edit_state() == self.edit_history.baseline:
+            return False
+        previous = self.capture_edit_state()
+        try:
+            self._restore_edit_state(self.edit_history.baseline)
+        except Exception as error:
+            if self.capture_edit_state() != previous:
+                self._restore_edit_state(previous)
+            QMessageBox.warning(self, tr('변경 복원 실패'), str(error))
+            return False
+        self.record_edit('전체 변경 되돌리기')
+        self.materialized_path = None
+        self._materialized_state = None
+        self.collect_preview_owners()
+        self.show_feedback(tr('처음 연 PDF로 되돌렸습니다. 실행 취소로 편집을 다시 가져올 수 있습니다.'))
+        return True
 
     def clear_previews(self):
+        retained = []
         for owner in self.preview_owners:
-            owner.cleanup()
-        self.preview_owners.clear()
+            try:
+                owner.cleanup()
+            except OSError:
+                retained.append(owner)
+        self.preview_owners[:] = retained
+        self.materialized_path = None
+        self._materialized_state = None
 
-    def apply_preview(self, path, password, owner):
+    def apply_preview(self, path, password, owner, label=None):
         """Take ownership of a reviewed working copy without publishing a user file."""
         page = self.page.value()
         self.load(path, password, preview=True)
@@ -564,10 +709,20 @@ class PdfViewer(QDialog):
         self.page.setValue(min(page, self.count))
         self.setWindowTitle(tr('* {v0} · 어잉PDF', v0=self.original_path.name))
         self.status.setText(tr('미리보기가 적용됐습니다. 확인한 뒤 저장을 누르세요.'))
+        self.record_edit(label or 'PDF 효과 적용')
 
-    def stage_current_preview(self):
+    def stage_current_preview(self, *, display=True):
         if self.pages == list(range(self.source_count)) and not (self.stamp_editor and self.stamp_editor.stamps):
-            return
+            return self.path
+        state = self.capture_edit_state()
+        if state == self._materialized_state and self.materialized_path and self.materialized_path.exists():
+            target = self.materialized_path
+            if display:
+                page = self.page.value()
+                self.load(target, self.password, preview=True)
+                self.page.setValue(min(page, self.count))
+                self.update_dirty_state()
+            return target
         import tempfile
         owner = tempfile.TemporaryDirectory(prefix='eoing-preview-')
         try:
@@ -577,7 +732,17 @@ class PdfViewer(QDialog):
                 if self.stamp_editor:
                     self.stamp_editor.apply(document, self.pages)
                 document.save(target, garbage=4, deflate=True, encryption=pdf.PDF_ENCRYPT_KEEP)
-            self.apply_preview(target, self.password, owner)
+            if display:
+                page = self.page.value()
+                self.load(target, self.password, preview=True)
+                self.page.setValue(min(page, self.count))
+                self.dirty = True
+                self.save_button.setEnabled(True)
+                self.setWindowTitle(tr('* {v0} · 어잉PDF', v0=self.original_path.name))
+            self.preview_owners.append(owner)
+            self.materialized_path, self._materialized_state = target, state
+            self.collect_preview_owners()
+            return target
         except Exception:
             owner.cleanup()
             raise
@@ -625,6 +790,7 @@ class PdfViewer(QDialog):
         answer = QMessageBox.question(self, tr('페이지 삭제 확인'), tr('{pages}페이지를 삭제할까요?\n저장 전까지 원본 파일은 변경되지 않습니다.', pages=selected), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if answer != QMessageBox.Yes:
             return
+        self.begin_edit()
         self.pages = [page for index, page in enumerate(self.pages) if index not in removed]
         self.count = len(self.pages)
         self._mark_page_edit()
@@ -634,6 +800,7 @@ class PdfViewer(QDialog):
         self.page.blockSignals(False)
         self.reset_thumbnails()
         self.render()
+        self.record_edit('페이지 삭제')
 
     def save_changes(self, *, suggested_name=None):
         if not self.dirty and suggested_name is None:
@@ -692,6 +859,9 @@ class PdfViewer(QDialog):
             self.thumbnail_timer.stop()
             self.feedback_timer.stop()
             self.sniffer.stop()
+            self.edit_history = None
+            if self.stamp_editor:
+                self.stamp_editor.reset()
             self.clear_previews()
             super().reject()
             event.accept()
