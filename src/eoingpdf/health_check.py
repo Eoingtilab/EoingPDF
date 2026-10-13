@@ -37,7 +37,38 @@ def main(arguments):
                 window.render()
                 if window.canvas.pixmap().isNull():
                     raise RuntimeError(tr('PDF 화면을 렌더링하지 못했습니다.'))
+                # Check the same JPEG decoder and editor modules used after an
+                # update. All input/output remains inside this synthetic probe.
+                from PIL import Image, ImageDraw
+                from PySide6.QtGui import QImageReader
+                from .stamp_editor import StampEditor
+                picture = Path(folder) / 'seal.jpg'
+                sample = Image.new('RGB', (100, 80), 'white')
+                ImageDraw.Draw(sample).rectangle((10, 10, 89, 69), outline='red', width=8)
+                sample.save(picture, quality=95)
+                editor = window.stamp_editor = StampEditor(window)
+                editor.add_image(picture)
+                with pdf.open(source) as probe:
+                    editor.apply(probe, [0])
+                    assert probe[0].get_images()
+                from .viewer import SlideShow
+                slides = SlideShow(source)
+                try:
+                    assert slides.ink_toolbar.insert(QImageReader(str(picture)).read()), 'JPEG decoder missing'
+                    slides.canvas.undo_ink()
+                    assert not slides.canvas.ink_strokes
+                    slides.canvas.redo_ink()
+                    assert slides.canvas.ink_strokes[0].kind == 'image'
+                finally:
+                    slides.canvas.set_ink([])
+                    slides.ink_by_slide.clear()
+                    slides.boards.clear()
+                    slides.close()
+                    slides.deleteLater()
             finally:
+                if window.stamp_editor:
+                    window.stamp_editor.reset()
+                    window.dirty = False
                 window.close()
                 window.deleteLater()
                 app.processEvents()

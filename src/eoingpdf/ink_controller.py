@@ -72,6 +72,8 @@ class InkController(QObject):
 
     def on_input(self, message, x, y):
         if message == 0x0215:
+            self.canvas.finish_edit()
+            self.canvas._edit_drag = None
             self.canvas._ink_current = None
             return
         if self.native is None:

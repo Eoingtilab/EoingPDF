@@ -33,32 +33,44 @@ def prepare_image(path):
     return buffer.getvalue(), image.width / image.height
 
 
-def apply(document, image_path, pages='1', x_mm=10, y_mm=10, width_mm=30,
-          cancelled=lambda: False, progress=lambda value: None):
+def placement_rect(aspect, x_mm, y_mm, width_mm):
     values = (x_mm, y_mm, width_mm)
     if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
            for value in values) or min(x_mm, y_mm) < 0 or not 1 <= width_mm <= 1000:
         raise ValueError(tr('위치는 0 이상, 너비는 1~1000mm로 입력해 주세요.'))
+    unit = 72 / 25.4
+    width, height = width_mm * unit, width_mm * unit / aspect
+    return pdf.Rect(x_mm * unit, y_mm * unit, x_mm * unit + width, y_mm * unit + height)
+
+
+def place_prepared(page, stream, aspect, x_mm, y_mm, width_mm):
+    """Place the exact transparent image reviewed in the viewer, retaining text/forms."""
+    area = placement_rect(aspect, x_mm, y_mm, width_mm)
+    if not (page.rect + (-.001, -.001, .001, .001)).contains(area):
+        raise ValueError(tr('페이지 밖으로 도장이 나갑니다. 위치나 크기를 줄여 주세요.'))
+    area &= page.rect
+    raw_area = area * page.derotation_matrix
+    rotation = page.rotation
+    page.set_rotation(0)
+    try:
+        page.insert_image(raw_area, stream=stream, rotate=rotation, overlay=True)
+    finally:
+        page.set_rotation(rotation)
+
+
+def apply(document, image_path, pages='1', x_mm=10, y_mm=10, width_mm=30,
+          cancelled=lambda: False, progress=lambda value: None):
     selected = list(range(len(document))) if not str(pages).strip() else list(dict.fromkeys(pages_from_text(pages, len(document))))
     if cancelled():
         raise Cancelled(tr('작업을 취소했습니다.'))
     stream, aspect = prepare_image(image_path)
-    unit = 72 / 25.4
-    width, height = width_mm * unit, width_mm * unit / aspect
-    area = pdf.Rect(x_mm * unit, y_mm * unit, x_mm * unit + width, y_mm * unit + height)
+    area = placement_rect(aspect, x_mm, y_mm, width_mm)
     for index in selected:
         if not document[index].rect.contains(area):
             raise ValueError(tr('{v0}페이지 밖으로 도장이 나갑니다. 위치나 크기를 줄여 주세요.', v0=index + 1))
     for step, index in enumerate(selected):
         if cancelled():
             raise Cancelled(tr('작업을 취소했습니다.'))
-        page = document[index]
-        raw_area = area * page.derotation_matrix
-        rotation = page.rotation
-        page.set_rotation(0)
-        try:
-            page.insert_image(raw_area, stream=stream, rotate=rotation, overlay=True)
-        finally:
-            page.set_rotation(rotation)
+        place_prepared(document[index], stream, aspect, x_mm, y_mm, width_mm)
         progress(int((step + 1) / len(selected) * 45))
     return len(selected)

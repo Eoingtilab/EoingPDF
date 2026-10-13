@@ -5,12 +5,12 @@ from time import monotonic
 from PySide6.QtCore import Qt, QTimer, QPointF, QRectF, QEvent, Signal
 from PySide6.QtGui import QPainter, QColor, QPainterPath, QPen, QGuiApplication
 from PySide6.QtWidgets import QLabel, QLineEdit
-from .ink_stroke import InkStroke
+from .ink_editing import InkEditing
 
 LASER_TRAIL_SECONDS = .45
 
 
-class PresentationCanvas(QLabel):
+class PresentationCanvas(InkEditing, QLabel):
     text_edit_started = Signal()
     def __init__(self):
         super().__init__()
@@ -28,6 +28,7 @@ class PresentationCanvas(QLabel):
         self.text_lines = []
         self._highlight_preview = []
         self.ink_strokes = []
+        self.init_editing()
         self._ghost_surfaces = {}
         self._ink_current = None
         self.native_ink = None
@@ -72,11 +73,13 @@ class PresentationCanvas(QLabel):
         self.update()
 
     def set_tool(self, tool):
-        if tool not in ('pen', 'highlight', 'ghost', 'shape', 'text'):
+        if tool not in ('pen', 'highlight', 'ghost', 'shape', 'text', 'erase', 'select', 'line', 'rectangle', 'ellipse', 'arrow'):
             raise ValueError(tr('지원하지 않는 판서 도구입니다.'))
         self._ink_current = None
         self._highlight_preview = []
         self.ink_tool = tool
+        if tool != 'select':
+            self.selected_ink = None
         self.ink_enabled = True
         self.setCursor(Qt.CrossCursor)
         self.update()
@@ -102,10 +105,14 @@ class PresentationCanvas(QLabel):
         self.update()
 
     def clear_ink(self):
+        self.start_edit()
         self.ink_strokes.clear()
+        self.selected_ink = None
         self._ink_current = None
         self._highlight_preview = []
         self.expire_ghosts()
+        self.finish_edit()
+        self.update()
 
     def expire_trail(self):
         # A 16ms paint tick can be delayed while a full-screen PDF is rendering.
@@ -119,6 +126,9 @@ class PresentationCanvas(QLabel):
         self.update()
 
     def mouseMoveEvent(self, event):
+        if self.ink_enabled and self.editing_move(event.position()):
+            event.accept()
+            return
         if self.ink_enabled and self._ink_current is not None:
             self._append_ink(event.position())
             self.update()
@@ -129,12 +139,16 @@ class PresentationCanvas(QLabel):
 
     def mousePressEvent(self, event):
         if self.ink_enabled and event.button() == Qt.LeftButton:
+            if self.editing_press(event.position()):
+                event.accept()
+                return
             if self.ink_tool == 'text':
                 self.begin_text(event.position())
                 event.accept()
                 return
             if not self.mask_suspended and self.page_rect().contains(event.position()):
-                self._ink_current = InkStroke([self._normalized(event.position())], self.ink_tool)
+                self.start_edit()
+                self._ink_current = self.styled_stroke([self._normalized(event.position())], self.ink_tool)
                 self._highlight_preview = []
                 if self.ink_tool != 'highlight':
                     self.ink_strokes.append(self._ink_current)
@@ -146,6 +160,9 @@ class PresentationCanvas(QLabel):
 
     def mouseReleaseEvent(self, event):
         if self.ink_enabled and event.button() == Qt.LeftButton:
+            if self.editing_release(event.position()):
+                event.accept()
+                return
             if self._ink_current is not None:
                 self._append_ink(event.position())
                 if len(self._ink_current) == 1 and self._ink_current.kind != 'highlight':
@@ -160,6 +177,7 @@ class PresentationCanvas(QLabel):
                         self._ink_current[:] = [QPointF(x, y) for x, y in result[1]]
             self._ink_current = None
             self._highlight_preview = []
+            self.finish_edit()
             self.update()
             event.accept()
             return
@@ -187,6 +205,8 @@ class PresentationCanvas(QLabel):
                    for y in range(max(0, py - 2), min(image.height(), py + 3))]
         brightness = sum(.2126 * p.redF() + .7152 * p.greenF() + .0722 * p.blueF() for p in samples) / len(samples)
         self._text_color = (0, 0, 0) if brightness > .5 else (1, 1, 1)
+        if self.custom_ink_color:
+            self._text_color = self.ink_color
         foreground = '#111111' if brightness > .5 else '#ffffff'
         background = '#ffffff' if brightness > .5 else '#111111'
         self.text_editor.setStyleSheet(f'QLineEdit {{color:{foreground};background:{background};border:1px solid #617aff;padding:4px;}}')
@@ -219,12 +239,17 @@ class PresentationCanvas(QLabel):
                 return False
         from .ink_text import text_strokes
         try:
-            strokes = text_strokes(self.text_editor.text(), self._text_anchor, self.page_size, self._text_color)
+            strokes = text_strokes(self.text_editor.text(), self._text_anchor, self.page_size, self._text_color, self.text_size)
         except ValueError as error:
             self.show_text_error(str(error))
             self.text_editor.setFocus()
             return False
+        self.start_edit()
+        self._text_group += 1
+        for stroke in strokes:
+            stroke.group = f'text-{self._text_group}'
         self.ink_strokes.extend(strokes)
+        self.finish_edit()
         self.text_editor.hide()
         self.text_error.hide()
         self.text_editor.clear()
@@ -280,7 +305,7 @@ class PresentationCanvas(QLabel):
             old = {id(stroke) for stroke in self._highlight_preview}
             self.ink_strokes[:] = [stroke for stroke in self.ink_strokes if id(stroke) not in old]
             selected = QRectF(self._ink_current[0], point).normalized().adjusted(-.005, -.005, .005, .005)
-            self._highlight_preview = [InkStroke([rect.topLeft(), rect.topRight(), rect.bottomRight(), rect.bottomLeft()], 'highlight')
+            self._highlight_preview = [self.styled_stroke([rect.topLeft(), rect.topRight(), rect.bottomRight(), rect.bottomLeft()], 'highlight')
                                        for rect in self.text_lines if rect.intersects(selected)]
             self.ink_strokes.extend(self._highlight_preview)
             return
@@ -288,6 +313,9 @@ class PresentationCanvas(QLabel):
             self._ink_current.append(point)
 
     def set_ink(self, strokes):
+        self.finish_edit()
+        self._edit_drag = None
+        self.selected_ink = None
         self._ink_current = None
         if strokes is not self.ink_strokes and any(getattr(stroke, 'kind', '') == 'ghost' for stroke in self.ink_strokes):
             self._ghost_surfaces[id(self.ink_strokes)] = self.ink_strokes
@@ -338,6 +366,7 @@ class PresentationCanvas(QLabel):
             painter.fillRect(int(left), int(cutoff), int(size.width()) + 1,
                              int(top + size.height() - cutoff) + 1, QColor('black'))
         painter.setRenderHint(QPainter.Antialiasing)
+        self.paint_pictures(painter)
         if self.spotlight and not self.board_mode:
             mask = QPainterPath()
             mask.setFillRule(Qt.OddEvenFill)
@@ -355,7 +384,7 @@ class PresentationCanvas(QLabel):
                 painter.drawEllipse(QPointF(point.x() * self.width(), point.y() * self.height()), 5, 5)
         if self.ink_strokes and not (self.native_ink and self.native_ink.active):
             for stroke in self.ink_strokes:
-                if len(stroke) < 2:
+                if len(stroke) < 2 or stroke.kind == 'image':
                     continue
                 opacity = stroke.alpha() if hasattr(stroke, 'alpha') else .9
                 color = QColor.fromRgbF(*getattr(stroke, 'color', (1, .82, 0)), opacity)
@@ -370,4 +399,5 @@ class PresentationCanvas(QLabel):
                     painter.fillPath(path, color)
                 else:
                     painter.drawPath(path)
+        self.paint_selection(painter)
         painter.end()

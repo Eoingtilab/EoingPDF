@@ -1,6 +1,7 @@
 """Local form entry, with values passed only to the owned worker's stdin."""
 from .localization import tr
 from pathlib import Path
+import tempfile
 import pymupdf as pdf
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QLabel, QLineEdit, QPlainTextEdit,
@@ -21,6 +22,8 @@ class FormDialog(QDialog):
         self.worker = None
         self.success = False
         self.target = None
+        self.preview_owner = None
+        self.preview_mode = hasattr(parent, 'apply_preview')
         self.fields = {}
         self.radio_groups = {}
         self.setWindowTitle(tr('양식 입력 · {v0}페이지', v0=page_index + 1))
@@ -100,7 +103,7 @@ class FormDialog(QDialog):
         self.status = QLabel(tr('입력 가능한 칸이 없습니다.') if not self.fields else '')
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
-        self.save = QPushButton(tr('입력 내용 새 PDF로 저장'))
+        self.save = QPushButton(tr('입력 내용 미리보기 적용') if self.preview_mode else tr('입력 내용 새 PDF로 저장'))
         self.save.setEnabled(bool(self.fields))
         self.save.clicked.connect(self.start)
         layout.addWidget(self.save)
@@ -131,8 +134,12 @@ class FormDialog(QDialog):
         from .license_ui import ensure_license
         if self.worker and self.worker.isRunning() or not ensure_license(self):
             return
-        name, _ = QFileDialog.getSaveFileName(self, tr('입력 결과 저장'),
-                                             str(self.path.with_name(self.path.stem + tr('_입력.pdf'))), 'PDF (*.pdf)')
+        if self.preview_mode:
+            self.preview_owner = tempfile.TemporaryDirectory(prefix='eoing-preview-')
+            name = str(Path(self.preview_owner.name) / 'filled.pdf')
+        else:
+            name, _ = QFileDialog.getSaveFileName(self, tr('입력 결과 저장'),
+                                                 str(self.path.with_name(self.path.stem + tr('_입력.pdf'))), 'PDF (*.pdf)')
         if not name:
             return
         values = self.input_values()
@@ -154,9 +161,25 @@ class FormDialog(QDialog):
 
     def worker_finished(self):
         if self.success:
-            self.saved.emit(self.target)
+            if self.preview_mode:
+                try:
+                    self.parentWidget().apply_preview(self.target, '', self.preview_owner)
+                    self.preview_owner = None
+                except Exception as error:
+                    self.preview_owner.cleanup()
+                    self.preview_owner = None
+                    self.status.setText(tr('미리보기 실패: ') + str(error))
+                    self.save.setEnabled(True)
+                    for field in self.fields.values():
+                        field.setEnabled(True)
+                    return
+            else:
+                self.saved.emit(self.target)
             self.accept()
         else:
+            if self.preview_owner:
+                self.preview_owner.cleanup()
+                self.preview_owner = None
             self.save.setEnabled(True)
             for field in self.fields.values():
                 field.setEnabled(True)

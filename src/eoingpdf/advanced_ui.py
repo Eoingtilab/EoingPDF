@@ -1,5 +1,6 @@
 """On-demand PDF utilities; no resident process and no password persistence."""
 from pathlib import Path
+import tempfile
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QHBoxLayout, QLabel,
     QLineEdit, QComboBox, QPushButton, QFileDialog, QCheckBox, QProgressBar, QDoubleSpinBox, QSpinBox, QWidget, QScrollArea)
@@ -13,6 +14,8 @@ class AdvancedDialog(QDialog):
         super().__init__(parent)
         self.worker = None
         self.compare_pair = None
+        self.preview_owner = None
+        self.preview_success = False
         self.setWindowTitle(tr('어잉PDF · 암호 및 보조 도구'))
         self.resize(620, 580)
         layout = QVBoxLayout(self)
@@ -143,6 +146,9 @@ class AdvancedDialog(QDialog):
         self.compare_button.hide()
         self.compare_button.clicked.connect(self.compare_saved)
         row.addWidget(self.compare_button)
+        self.preview_button = QPushButton(tr('미리보기 적용'))
+        self.preview_button.clicked.connect(lambda: self.start(preview=True))
+        row.addWidget(self.preview_button)
         self.save = QPushButton(tr('새 PDF로 저장'))
         self.save.setObjectName('primary')
         self.save.clicked.connect(self.start)
@@ -163,6 +169,9 @@ class AdvancedDialog(QDialog):
 
     def changed(self):
         key = self.tool.currentData()
+        self.preview_button.setVisible(hasattr(self.parentWidget(), 'apply_preview') and
+                                       key not in {'split_ranges', 'split_groups', 'split_toc', 'svg', 'dxf', 'markdown'})
+        self.preview_button.setEnabled(True)
         self.replace_choice.setVisible(key == 'replace_image')
         self.replace_choice.setEnabled(key == 'replace_image')
         self.form.labelForField(self.replace_choice).setVisible(key == 'replace_image')
@@ -224,7 +233,7 @@ class AdvancedDialog(QDialog):
         if name:
             self.source.setText(name)
 
-    def start(self):
+    def start(self, preview=False):
         from .license_ui import ensure_license
         if self.worker and self.worker.isRunning():
             return
@@ -246,9 +255,23 @@ class AdvancedDialog(QDialog):
                 return
             form_review = review.selection()
         extension = '.zip' if key in {'split_ranges', 'split_groups', 'split_toc', 'svg', 'dxf'} else '.md' if key == 'markdown' else '.pdf'
-        target, _ = QFileDialog.getSaveFileName(self, tr('새 결과 저장'),
-            str(source.with_name(source.stem + '_' + tr(TOOLS[key][0]) + extension)), f'{extension[1:].upper()} (*{extension})')
+        if preview:
+            if extension != '.pdf' or not hasattr(self.parentWidget(), 'apply_preview'):
+                return
+            self.preview_owner = tempfile.TemporaryDirectory(prefix='eoing-preview-')
+            target = str(Path(self.preview_owner.name) / 'preview.pdf')
+            self.preview_success = False
+            self.preview_password = self.user_password.text() if key == 'encrypt' else ''
+            self.preview_target = target
+        else:
+            original = getattr(self.parentWidget(), 'original_path', source)
+            target, _ = QFileDialog.getSaveFileName(self, tr('새 결과 저장'),
+                str(original.with_name(original.stem + '_' + tr(TOOLS[key][0]) + extension)), f'{extension[1:].upper()} (*{extension})')
         if not target:
+            return
+        if not preview and any(Path(target).resolve().is_relative_to(Path(owner.name))
+                               for owner in getattr(self.parentWidget(), 'preview_owners', [])):
+            self.status.setText(tr('미리보기 임시 폴더 밖에 저장해 주세요.'))
             return
         self.compare_pair = None
         self.compare_button.hide()
@@ -267,6 +290,7 @@ class AdvancedDialog(QDialog):
                        stamp_width_mm=self.stamp_width.value(), stamp_flatten=self.stamp_flatten.isChecked(),
                        replace_xref=self.replace_selection[0], replace_digest=self.replace_selection[1], form_review=form_review)
         self.worker = TransformWorker(options, self)
+        self.preview_button.setEnabled(False)
         self.worker.progress.connect(self.progress.setValue)
         self.worker.result.connect(self.completed)
         self.worker.finished.connect(self.finished_job)
@@ -289,8 +313,22 @@ class AdvancedDialog(QDialog):
         self.changed()
         self.cancel.setText(tr('닫기'))
         self.compare_button.setEnabled(bool(self.compare_pair))
+        if self.preview_owner:
+            owner, self.preview_owner = self.preview_owner, None
+            try:
+                if self.preview_success:
+                    self.parentWidget().apply_preview(self.preview_target, self.preview_password, owner)
+                    self.pending_pair = self.compare_pair = None
+                    self.preview_password = ''
+                    self.accept()
+                else:
+                    owner.cleanup()
+            except Exception as error:
+                owner.cleanup()
+                self.status.setText(tr('미리보기 실패: ') + str(error))
 
     def completed(self, success, message):
+        self.preview_success = success
         self.status.setText(message)
         if success and self.pending_pair:
             self.compare_pair = self.pending_pair

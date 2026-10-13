@@ -28,7 +28,7 @@ def needed(entry):
         return False
     if name.startswith('qt6') and name.endswith('.dll') and name not in allowed_qt:
         return False
-    if '/plugins/' in location and name not in {'qwindows.dll', 'qoffscreen.dll'}:
+    if '/plugins/' in location and name not in {'qwindows.dll', 'qoffscreen.dll', 'qjpeg.dll'}:
         return False
     if name in {'opengl32sw.dll', '_avif.cp312-win_amd64.pyd'}:
         return False

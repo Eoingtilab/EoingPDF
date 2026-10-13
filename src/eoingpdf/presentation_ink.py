@@ -8,6 +8,7 @@ import pymupdf as pdf
 
 from .core import open_pdf
 from .ink_stroke import permanent
+from .page_edits import apply_page_order
 
 
 def save_presentation_ink(source, target, pages, strokes_by_slide, password='', boards=None):
@@ -24,7 +25,7 @@ def save_presentation_ink(source, target, pages, strokes_by_slide, password='', 
     try:
         with open_pdf(source, password) as document:
             # Preserve the viewer's pending page removal and visible page order.
-            document.select(pages)
+            apply_page_order(document, pages)
             for slide, strokes in strokes_by_slide.items():
                 if not 0 <= slide < len(pages):
                     raise ValueError(tr('판서 페이지 번호가 올바르지 않습니다.'))
@@ -62,8 +63,19 @@ def board_order(boards, count):
 
 
 def _write_strokes(page, strokes):
+    # Pictures form the background for the editable vector annotations.
+    from .stamping import place_prepared
+    from .ink_editing import bounds
     for stroke in strokes:
-        if not permanent(stroke):
+        if permanent(stroke) and getattr(stroke, 'kind', '') == 'image':
+            rect = bounds([stroke])
+            if rect.isEmpty() or any(not 0 <= value <= 1 for value in (rect.left(), rect.right(), rect.top(), rect.bottom())):
+                raise ValueError(tr('판서 좌표가 페이지 범위를 벗어났습니다.'))
+            width, height = rect.width() * page.rect.width, rect.height() * page.rect.height
+            place_prepared(page, stroke.image_png, width / height,
+                           rect.x() * page.rect.width * 25.4 / 72, rect.y() * page.rect.height * 25.4 / 72, width * 25.4 / 72)
+    for stroke in strokes:
+        if not permanent(stroke) or getattr(stroke, 'kind', '') == 'image':
             continue
         points = []
         for point in stroke:
@@ -73,7 +85,7 @@ def _write_strokes(page, strokes):
             mapped = pdf.Point(x * page.rect.width, y * page.rect.height) * page.derotation_matrix
             points.append((mapped.x, mapped.y))
         kind = getattr(stroke, 'kind', '')
-        if kind == 'text':
+        if kind == 'text' or (getattr(stroke, 'fill', False) and kind != 'highlight'):
             annotation = page.add_polygon_annot(points)
             annotation.set_border(width=0)
             annotation.set_colors(stroke=None, fill=stroke.color)

@@ -82,6 +82,8 @@ class NativeInk:
         self.library.InkShow(self.handle, visible)
 
     def render(self, strokes, width):
+        # Pictures are painted below vector ink by the Qt canvas.
+        strokes = [stroke for stroke in strokes if getattr(stroke, 'kind', '') != 'image']
         count = sum(len(stroke) for stroke in strokes)
         if count > 250000 or len(strokes) > 10000:
             raise ValueError(tr('한 페이지 판서 한도에 도달했습니다. 저장 후 계속해 주세요.'))
