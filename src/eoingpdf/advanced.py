@@ -177,7 +177,8 @@ def transform(source, target, operation, password='', user_password='', owner_pa
                 from .splitter import write_archive
                 changed = write_archive(doc, scratch, operation, split_ranges, group_size, cancelled, progress)
             elif operation == 'reverse':
-                doc.select(list(reversed(range(count))))
+                from .page_edits import apply_page_order
+                apply_page_order(doc, reversed(range(count)))
                 changed = count
             elif operation in {'watermark_text', 'watermark_png'}:
                 from .watermark import apply

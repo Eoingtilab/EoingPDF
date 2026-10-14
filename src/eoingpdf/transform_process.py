@@ -6,6 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
 from .localization import tr, current_locale, configure_language
 
+MAX_REQUEST_BYTES = 4 * 1024 * 1024
 
 class TransformWorker(QObject):
     child_option = '--transform-child'
@@ -119,8 +120,8 @@ def child_main():
         print(json.dumps(value, ensure_ascii=True), file=protocol, flush=True)
 
     try:
-        raw = sys.stdin.buffer.read(65537)
-        if len(raw) > 65536:
+        raw = sys.stdin.buffer.read(MAX_REQUEST_BYTES + 1)
+        if len(raw) > MAX_REQUEST_BYTES:
             raise ValueError(tr('요청 크기가 너무 큽니다.'))
         options = json.loads(raw)
         configure_language(options.pop('locale', None))

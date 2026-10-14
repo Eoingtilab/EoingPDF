@@ -1,4 +1,4 @@
-# 어잉PDF 2.4.1
+# 어잉PDF 2.4.2
 
 **무료 · 오픈소스 · 로컬 처리 · Windows용 올인원 PDF 도구**
 
@@ -10,7 +10,7 @@ Adobe Acrobat, NESPDF 같은 상용 PDF 프로그램을 찾던 사용자에게 *
 
 **무료 사용** · **AGPL-3.0 오픈소스** · **Windows 10/11 x64** · **문서 로컬 처리** · **설치형/포터블 지원**
 
-[Windows 설치파일 다운로드](https://github.com/Eoingtilab/nalapps-releases/releases/download/utility-eoingpdf-v2.4.1/EoingPDF-2.4.1-Setup-x64.exe) · [2.4.1 배포 릴리스](https://github.com/Eoingtilab/nalapps-releases/releases/tag/utility-eoingpdf-v2.4.1) · [무료 라이선스 발급](https://app.nal.la/?p=26818) · [변경 이력](CHANGELOG.md)
+[Windows 설치파일 다운로드](https://github.com/Eoingtilab/nalapps-releases/releases/download/utility-eoingpdf-v2.4.2/EoingPDF-2.4.2-Setup-x64.exe) · [2.4.2 배포 릴리스](https://github.com/Eoingtilab/nalapps-releases/releases/tag/utility-eoingpdf-v2.4.2) · [무료 라이선스 발급](https://app.nal.la/?p=26818) · [변경 이력](CHANGELOG.md)
 
 ## 왜 어잉PDF인가
 
@@ -28,6 +28,7 @@ Adobe Acrobat, NESPDF 같은 상용 PDF 프로그램을 찾던 사용자에게 *
 
 ### 저장 전에 현재 화면에서 편집 확인
 
+- 2.4.2에서는 공유 입력 필드의 역순·추출·분할, 긴 한글 입력, 페이지 삭제 후 위치와 판서 종료 취소를 보완했습니다. 썸네일 이미지는 최대 24개 카드로 관리합니다. [검증 결과와 측정 조건](docs/QUALITY_REPORT_2.4.2.md)을 확인하세요.
 - 하단 페이지 화살표는 위 ▲ 이전 페이지, 아래 ▼ 다음 페이지로 이동합니다.
 
 - 상단 **슬라이드쇼 · F5**와 **직인·서명 넣기**에서 자주 쓰는 작업을 바로 시작합니다. **모든 도구**는 7개 작업 분류와 이름 검색, 짧은 설명을 제공합니다.
@@ -87,11 +88,11 @@ Adobe Acrobat, NESPDF 같은 상용 PDF 프로그램을 찾던 사용자에게 *
 설치 과정 또는 앱/뷰어의 **라이선스 설정**에서 키를 입력해 활성화하며, 비활성화 후 재활성화할 수 있습니다.
 최초 활성화에는 인터넷이 필요하며 이후에는 오프라인에서도 사용할 수 있습니다. 키는 PC에 암호화 저장하고 문서 내용은 서버로 보내지 않습니다.
 
-설치형은 `EoingPDF-2.4.1-Setup-x64.exe`를 실행합니다. 현재 사용자 폴더에 설치되며 시작 메뉴와 우클릭 메뉴, PDF 문서 아이콘을 등록합니다.
+설치형은 `EoingPDF-2.4.2-Setup-x64.exe`를 실행합니다. 현재 사용자 폴더에 설치되며 시작 메뉴와 우클릭 메뉴, PDF 문서 아이콘을 등록합니다.
 설치 마지막 화면에서 기본 PDF 앱 설정을 열 수 있습니다. 제거는 Windows 설정의 설치된 앱에서 **어잉PDF**를 선택합니다.
 아래는 포터블 사용 방법입니다.
 
-1. 포터블 폴더 배포판을 사용할 경우 `release/EoingPDF-2.4.1-portable.zip`을 원하는 위치에 풉니다. 단일 실행 파일은 `EoingPDF-2.4.1-portable.exe`입니다.
+1. 포터블 폴더 배포판을 사용할 경우 `release/EoingPDF-2.4.2-portable.zip`을 원하는 위치에 풉니다. 단일 실행 파일은 `EoingPDF-2.4.2-portable.exe`입니다.
 2. 폴더 안의 `install-context-menu.cmd`를 한 번 실행합니다. 관리자 권한은 필요하지 않습니다.
    Windows 기본 앱 설정이 열리면 `.pdf`에 **어잉PDF**를 선택합니다. 이후 PDF를 더블클릭하면 뷰어가 열립니다.
 3. 탐색기에서 파일을 선택하고 우클릭합니다. Windows 11에서는 **더 많은 옵션 표시**를 누릅니다.

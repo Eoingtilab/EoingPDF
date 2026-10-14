@@ -39,17 +39,18 @@ def plan(document, mode, ranges='', group_size=1):
 
 def write_archive(document, target, mode, ranges='', group_size=1, cancelled=lambda: False, progress=lambda value: None):
     groups = plan(document, mode, ranges, group_size)
+    from .page_copy import copy_pages
+    snapshot = document.tobytes(encryption=pdf.PDF_ENCRYPT_NONE) if document.is_form_pdf else None
     with zipfile.ZipFile(target, 'w', compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
         for index, (title, pages) in enumerate(groups):
             if cancelled():
                 raise Cancelled(tr('작업을 취소했습니다.'))
             safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', title).strip(' .')[:70] or tr('문서')
             filename = f'{index + 1:04d}_{safe}.pdf'
-            with pdf.open() as output:
-                for page in pages:
-                    if cancelled():
-                        raise Cancelled(tr('작업을 취소했습니다.'))
-                    output.insert_pdf(document, from_page=page, to_page=page)
+            def before_page(_index, _page):
+                if cancelled():
+                    raise Cancelled(tr('작업을 취소했습니다.'))
+            with copy_pages(document, pages, before_page, snapshot) as output:
                 output.set_metadata(document.metadata)
                 archive.writestr(filename, output.tobytes(garbage=4, deflate=True))
             progress(int((index + 1) / len(groups) * 90))

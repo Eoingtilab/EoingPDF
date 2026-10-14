@@ -9,6 +9,8 @@ from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QL
 from .core import open_pdf, pages_from_text, Request, run
 from .page_edits import apply_page_order
 
+THUMBNAIL_CARD_LIMIT = 24
+
 
 def delete_pages(path, selection, folder):
     with open_pdf(path) as document:
@@ -440,14 +442,31 @@ class PdfViewer(QDialog):
         self.record_edit('페이지 순서 변경')
 
     def fill_thumbnails(self):
-        if not self.thumbnail_mode:
+        if not self.thumbnail_mode or not self.thumbnails.count():
             return
         viewport = self.thumbnails.viewport()
         first = max(0, self.thumbnails.indexAt(QPoint(10, 10)).row())
         last = self.thumbnails.indexAt(QPoint(10, max(10, viewport.height() - 10))).row()
         if last < first:
             last = min(self.count - 1, first + max(2, viewport.height() // 174 + 1))
-        pending = [i for i in range(max(0, first - 1), min(self.count, last + 2)) if i not in self.thumbnail_cache]
+        visible = set(range(max(0, first - 1), min(self.count, last + 2)))
+        # QListWidget rows remain available for page order / drag and drop, but
+        # each rendered card owns several widgets and a raster. Retain a small
+        # neighborhood, not every page the user has ever scrolled past.
+        distance = lambda row: max(first - row, row - last, 0)
+        retained = set(sorted(self.thumbnail_cache | visible, key=distance)[:THUMBNAIL_CARD_LIMIT])
+        for index in self.thumbnail_cache - retained:
+            item = self.thumbnails.item(index)
+            card = self.thumbnails.itemWidget(item)
+            if card is not None:
+                self.thumbnails.removeItemWidget(item)
+                card.hide()
+                card.setEnabled(False)
+                card.deleteLater()
+        self.thumbnail_cache.intersection_update(retained)
+        pending = sorted((visible & retained) - self.thumbnail_cache)
+        if not pending:
+            return
         try:
             with open_pdf(self.path, self.password) as document:
                 for index in pending[:4]:
@@ -791,12 +810,17 @@ class PdfViewer(QDialog):
         if answer != QMessageBox.Yes:
             return
         self.begin_edit()
+        current_row = self.page.value() - 1
+        current_page = self.pages[current_row]
+        kept_before = sum(index not in removed for index in range(current_row))
         self.pages = [page for index, page in enumerate(self.pages) if index not in removed]
         self.count = len(self.pages)
         self._mark_page_edit()
         self.page.blockSignals(True)
         self.page.setRange(1, self.count)
         self.page.setSuffix(f' / {self.count}')
+        self.page.setValue(self.pages.index(current_page) + 1 if current_page in self.pages
+                           else min(kept_before + 1, self.count))
         self.page.blockSignals(False)
         self.reset_thumbnails()
         self.render()
@@ -853,16 +877,24 @@ class PdfViewer(QDialog):
         self.close()
 
     def closeEvent(self, event):
+        if self.slideshow is not None and self.slideshow.isVisible():
+            self.slideshow.reject()
+            if self.slideshow.isVisible():
+                event.ignore()
+                return
         if self.confirm_leave():
-            if self.slideshow is not None and self.slideshow.isVisible():
-                self.slideshow.reject()
             self.thumbnail_timer.stop()
+            self.fit_timer.stop()
             self.feedback_timer.stop()
             self.sniffer.stop()
             self.edit_history = None
             if self.stamp_editor:
                 self.stamp_editor.reset()
             self.clear_previews()
+            self.thumbnails.clear()
+            self.thumbnail_cache.clear()
+            self.canvas.clear()
+            self.thumbnail_timer.stop()
             super().reject()
             event.accept()
         else:

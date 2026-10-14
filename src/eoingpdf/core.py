@@ -116,10 +116,10 @@ def run(request, progress=lambda value, message: None, cancelled=lambda: False):
             with open_pdf(paths[0]) as doc:
                 selected = pages_from_text(request.pages, doc.page_count)
                 if request.tool == 'extract':
-                    with pdf.open() as out:
-                        for i, p in enumerate(selected):
-                            tick(i, len(selected), tr('{v0}페이지를 담고 있습니다', v0=p + 1))
-                            out.insert_pdf(doc, from_page=p, to_page=p)
+                    from .page_copy import copy_pages
+                    def before_page(i, p):
+                        tick(i, len(selected), tr('{v0}페이지를 담고 있습니다', v0=p + 1))
+                    with copy_pages(doc, selected, before_page) as out:
                         out.save(scratch, garbage=4, deflate=True)
                 elif request.tool == 'png':
                     with zipfile.ZipFile(scratch, 'w', zipfile.ZIP_DEFLATED) as archive:

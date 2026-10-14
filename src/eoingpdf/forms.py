@@ -151,11 +151,21 @@ def fill_fields(document, values, cancelled=lambda: False, progress=lambda value
         raise ValueError(tr('입력 필드 데이터가 올바르지 않습니다.'))
     remaining = set(values)
     selected_groups = set()
+    shared_values = {}
+    choice_widgets = {}
     # Reject conflicting requests before any widget is changed.
-    for page in document:
+    for page_index, page in enumerate(document):
         if cancelled():
             raise Cancelled(tr('작업을 취소했습니다.'))
         for field in page.widgets() or ():
+            if field.field_type in (pdf.PDF_WIDGET_TYPE_COMBOBOX, pdf.PDF_WIDGET_TYPE_LISTBOX):
+                choice_widgets.setdefault(field_identity(document, field), []).append((page_index, field.xref))
+            key = str(field.xref)
+            if field.field_type != pdf.PDF_WIDGET_TYPE_RADIOBUTTON and key in values:
+                identity = field_identity(document, field)
+                if identity in shared_values and shared_values[identity] != values[key]:
+                    raise ValueError(tr('입력 필드 데이터가 올바르지 않습니다.'))
+                shared_values[identity] = values[key]
             if field.field_type == pdf.PDF_WIDGET_TYPE_RADIOBUTTON and str(field.xref) in values:
                 if values[str(field.xref)] is not True:
                     raise ValueError(tr('라디오 버튼은 선택할 항목 하나만 지정해 주세요.'))
@@ -167,6 +177,9 @@ def fill_fields(document, values, cancelled=lambda: False, progress=lambda value
         if cancelled():
             raise Cancelled(tr('작업을 취소했습니다.'))
         for field in page.widgets() or ():
+            if (field.field_type != pdf.PDF_WIDGET_TYPE_RADIOBUTTON and
+                    field_identity(document, field) in shared_values and field.field_flags & pdf.PDF_FIELD_IS_READ_ONLY):
+                raise ValueError(tr('읽기 전용 필드는 변경할 수 없습니다.'))
             if (field.field_type == pdf.PDF_WIDGET_TYPE_RADIOBUTTON and
                     radio_group(document, field) in selected_groups and field.field_flags & pdf.PDF_FIELD_IS_READ_ONLY):
                 raise ValueError(tr('읽기 전용 라디오 그룹은 변경할 수 없습니다.'))
@@ -176,7 +189,7 @@ def fill_fields(document, values, cancelled=lambda: False, progress=lambda value
             raise Cancelled(tr('작업을 취소했습니다.'))
         for field in page.widgets() or ():
             key = str(field.xref)
-            if key not in values:
+            if key not in remaining:
                 continue
             if field.field_flags & pdf.PDF_FIELD_IS_READ_ONLY:
                 raise ValueError(tr('읽기 전용 필드는 변경할 수 없습니다.'))
@@ -190,7 +203,7 @@ def fill_fields(document, values, cancelled=lambda: False, progress=lambda value
                 if not field.field_value:
                     raise ValueError(tr('라디오 버튼의 선택 상태를 읽을 수 없습니다.'))
             elif field.field_type in (pdf.PDF_WIDGET_TYPE_COMBOBOX, pdf.PDF_WIDGET_TYPE_LISTBOX):
-                set_choice(document, field, value)
+                set_choice(document, field, value, choice_widgets[field_identity(document, field)])
                 remaining.remove(key)
                 changed += 1
                 continue
@@ -212,13 +225,41 @@ def fill_fields(document, values, cancelled=lambda: False, progress=lambda value
 
 
 def choice_options(field):
-    return [(str(item[0]), str(item[1])) if isinstance(item, (list, tuple)) else (str(item), str(item))
-            for item in field.choice_values or ()]
+    # Widget.choice_values can return empty strings for export/display pairs
+    # inherited from a parent field. Read the actual inheritable PDF /Opt array.
+    api = pdf.mupdf
+    obj = api.pdf_annot_obj(field._annot.this)
+    options = api.pdf_dict_get_inheritable(obj, api.pdf_new_name('Opt'))
+    result = []
+    for index in range(api.pdf_array_len(options)):
+        item = api.pdf_array_get(options, index)
+        if api.pdf_is_array(item):
+            value = api.pdf_to_text_string(api.pdf_array_get(item, 0))
+            label = api.pdf_to_text_string(api.pdf_array_get(item, 1))
+        else:
+            value = label = api.pdf_to_text_string(item)
+        result.append((value, label))
+    return result
 
 
 def radio_group(document, field):
     kind, parent = document.xref_get_key(field.xref, 'Parent')
     return ('parent', parent) if kind == 'xref' else ('name', field.field_name)
+
+
+def field_identity(document, field):
+    """Identify a field by its actual object, not a possibly ambiguous name."""
+    current = field.xref
+    seen = set()
+    while current not in seen:
+        seen.add(current)
+        if document.xref_get_key(current, 'T')[0] != 'null':
+            return current
+        kind, parent = document.xref_get_key(current, 'Parent')
+        if kind != 'xref':
+            break
+        current = int(parent.split()[0])
+    return field.xref
 
 
 def choice_selection(field):
@@ -231,7 +272,7 @@ def choice_selection(field):
     return [field.field_value] if field.field_value not in (None, '') else []
 
 
-def set_choice(document, field, values):
+def set_choice(document, field, values, siblings=None):
     options = choice_options(field)
     exports = [item[0] for item in options]
     multi = bool(field.field_flags & pdf.PDF_CH_FIELD_IS_MULTI_SELECT)
@@ -244,15 +285,27 @@ def set_choice(document, field, values):
         raise ValueError(tr('선택 목록에 없는 값입니다.'))
     if multi:
         selected = sorted(selected, key=lambda value: exports.index(value))
+    identity = field_identity(document, field)
+    field.choice_values = options
     field.field_value = selected[0] if selected else ''
     field.update()
-    document.xref_set_key(field.xref, 'V',
+    document.xref_set_key(identity, 'V',
                           '[' + ' '.join(pdf.get_pdf_str(value) for value in selected) + ']' if multi
                           else pdf.get_pdf_str(selected[0]))
     indices = [exports.index(value) for value in selected if value in exports]
-    document.xref_set_key(field.xref, 'I', '[' + ' '.join(map(str, indices)) + ']' if indices else 'null')
+    document.xref_set_key(identity, 'I', '[' + ' '.join(map(str, indices)) + ']' if indices else 'null')
     # Rebuild the actual appearance from /V and /I without scalar Widget.update
     # overwriting a multi-selection array.
     api = pdf.mupdf
-    api.pdf_dirty_annot(field._annot.this)
-    api.pdf_update_annot(field._annot.this)
+    if siblings is None:
+        siblings = [(page_index, sibling.xref) for page_index, page in enumerate(document)
+                    for sibling in page.widgets() or () if field_identity(document, sibling) == identity]
+    updated = set()
+    for page_index, xref in siblings:
+        if xref in updated:
+            continue
+        page = document[page_index]
+        sibling = page.load_widget(xref)
+        api.pdf_dirty_annot(sibling._annot.this)
+        api.pdf_update_annot(sibling._annot.this)
+        updated.add(xref)

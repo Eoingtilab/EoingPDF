@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QLabel, QLineE
                                QCheckBox, QPushButton, QScrollArea, QWidget, QFileDialog,
                                QComboBox, QListWidget, QListWidgetItem, QAbstractItemView, QRadioButton, QButtonGroup)
 from .core import open_pdf
-from .forms import choice_options, choice_selection, radio_group
+from .forms import choice_options, choice_selection, radio_group, field_identity
 from .transform_process import TransformWorker
 
 
@@ -41,8 +41,16 @@ class FormDialog(QDialog):
         with open_pdf(self.path, self.password) as document:
             readonly_groups = {radio_group(document, field) for item in document for field in item.widgets() or ()
                                if field.field_type == pdf.PDF_WIDGET_TYPE_RADIOBUTTON and field.field_flags & pdf.PDF_FIELD_IS_READ_ONLY}
+            readonly_fields = {field_identity(document, field) for item in document for field in item.widgets() or ()
+                               if field.field_type != pdf.PDF_WIDGET_TYPE_RADIOBUTTON and field.field_flags & pdf.PDF_FIELD_IS_READ_ONLY}
+            seen_fields = set()
             page = document[page_index]
             for number, field in enumerate(page.widgets() or (), 1):
+                identity = field_identity(document, field)
+                if field.field_type != pdf.PDF_WIDGET_TYPE_RADIOBUTTON:
+                    if identity in seen_fields:
+                        continue
+                    seen_fields.add(identity)
                 if field.field_type not in (pdf.PDF_WIDGET_TYPE_TEXT, pdf.PDF_WIDGET_TYPE_CHECKBOX,
                                            pdf.PDF_WIDGET_TYPE_RADIOBUTTON, pdf.PDF_WIDGET_TYPE_COMBOBOX, pdf.PDF_WIDGET_TYPE_LISTBOX):
                     form.addRow(QLabel(tr('{v0}번 칸: 지원하지 않는 필드 종류', v0=number)))
@@ -96,6 +104,8 @@ class FormDialog(QDialog):
                 readonly = bool(field.field_flags & pdf.PDF_FIELD_IS_READ_ONLY)
                 if field.field_type == pdf.PDF_WIDGET_TYPE_RADIOBUTTON:
                     readonly = readonly or radio_group(document, field) in readonly_groups
+                else:
+                    readonly = readonly or identity in readonly_fields
                 editor.setEnabled(not readonly)
                 form.addRow(field.field_label or field.field_name or tr('{v0}번 입력 칸', v0=number), editor)
                 if not readonly:
