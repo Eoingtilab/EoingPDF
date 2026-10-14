@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QListWidget, QListWidgetItem, QFileDialog, QMessageBox)
 
 from .localization import tr
+from .action_icons import set_action_icon
 
 
 class CaptureSession(QObject):
@@ -129,16 +130,20 @@ class CaptureDialog(QDialog):
         layout.addWidget(self.files)
         row = QHBoxLayout()
         remove = QPushButton(tr('선택 제거'))
+        set_action_icon(remove, 'delete')
         remove.clicked.connect(self.remove_selected)
         row.addWidget(remove)
         clear = QPushButton(tr('캡처 모두 비우기'))
+        set_action_icon(clear, 'clear')
         clear.clicked.connect(self.clear_captures)
         row.addWidget(clear)
         row.addStretch()
         self.save_button = QPushButton(tr('PDF 저장'))
+        set_action_icon(self.save_button, 'save')
         self.save_button.clicked.connect(self.save)
         row.addWidget(self.save_button)
         close = QPushButton(tr('닫기'))
+        set_action_icon(close, 'close')
         close.clicked.connect(self.reject)
         row.addWidget(close)
         layout.addLayout(row)
@@ -174,6 +179,7 @@ class CaptureChip(QPushButton):
     """A hidden chip still observes its owning window's show/hide lifecycle."""
     def __init__(self, window):
         super().__init__(window)
+        set_action_icon(self, 'capture')
         self.owner = window
         self.store = session()
         self.lease = [False]

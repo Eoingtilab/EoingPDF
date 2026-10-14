@@ -38,6 +38,21 @@ def main(arguments):
                 window.render()
                 if window.canvas.pixmap().isNull():
                     raise RuntimeError(tr('PDF 화면을 렌더링하지 못했습니다.'))
+                # Exercise the bundled vector engine, including disabled
+                # actions. Theme / DPI visual checks run in the Windows gate.
+                from PySide6.QtGui import QIcon
+                for button in (window.open_button, window.slideshow_button, window.stamp_button,
+                               window.more_features_button, window.save_button, window.close_button,
+                               window.undo_button, window.redo_button, window.history_button,
+                               window.form_button, window.page_tools_button, window.view_tools_button,
+                               window.previous, window.next, window.print_button, window.settings_button):
+                    mode = QIcon.Normal if button.isEnabled() else QIcon.Disabled
+                    assert not button.icon().isNull()
+                    pixels = button.icon().pixmap(16, 16, mode).toImage()
+                    assert not pixels.isNull()
+                    assert any(pixels.pixelColor(x, y).alpha() for x in range(pixels.width())
+                               for y in range(pixels.height()))
+                assert window.save_button.objectName() != 'primary'
                 next(button for button in window.findChildren(QPushButton) if button.text() == '▼').click()
                 assert window.page.value() == 2
                 next(button for button in window.findChildren(QPushButton) if button.text() == '▲').click()

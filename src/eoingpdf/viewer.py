@@ -5,9 +5,10 @@ from pathlib import Path
 import pymupdf as pdf
 from PySide6.QtCore import Qt, QEvent, QTimer, QSize, QPoint, Signal, QRectF
 from PySide6.QtGui import QImage, QPixmap, QShortcut, QKeySequence, QIcon, QGuiApplication
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSpinBox, QComboBox, QInputDialog, QFileDialog, QMessageBox, QListWidget, QListWidgetItem, QListView, QWidget, QAbstractSpinBox, QAbstractItemView, QLineEdit, QMenu
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSpinBox, QComboBox, QInputDialog, QFileDialog, QMessageBox, QListWidget, QListWidgetItem, QListView, QWidget, QAbstractSpinBox, QAbstractItemView, QLineEdit
 from .core import open_pdf, pages_from_text, Request, run
 from .page_edits import apply_page_order
+from .action_icons import action_icon, set_action_icon, tool_icon
 
 THUMBNAIL_CARD_LIMIT = 24
 
@@ -84,8 +85,10 @@ class PdfViewer(QDialog):
         self.capture_chip = CaptureChip(self)
         layout.addWidget(self.capture_chip)
         navigation = QHBoxLayout()
-        self.previous = QPushButton(tr('‹ 이전'))
-        self.next = QPushButton(tr('다음 ›'))
+        self.previous = QPushButton(tr('이전'))
+        set_action_icon(self.previous, 'previous')
+        self.next = QPushButton(tr('다음'))
+        set_action_icon(self.next, 'next')
         self.page = QSpinBox()
         self.page.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.page.setRange(1, self.count)
@@ -112,9 +115,11 @@ class PdfViewer(QDialog):
         navigation.addStretch()
         navigation.addWidget(self.zoom)
         self.print_button = QPushButton(tr('인쇄 준비'))
-        print_menu = QMenu(self.print_button)
+        set_action_icon(self.print_button, 'print')
+        from .viewer_workspace import action_menu
+        print_menu = action_menu(self.print_button)
         for title, action in [(tr('밝은 인쇄용 사본'), 'print_light'), (tr('4쪽 모아찍기'), 'four_up'), (tr('소책자 인쇄 배치'), 'booklet')]:
-            item = print_menu.addAction(tr(title))
+            item = print_menu.addAction(tool_icon(action, 'view', print_menu), tr(title))
             item.triggered.connect(lambda checked=False, key=action: self.diagnostic_action(key))
         print_menu.aboutToShow.connect(lambda: self.sniffer.start(self.path, trigger='print'))
         self.print_button.setMenu(print_menu)
@@ -178,10 +183,11 @@ class PdfViewer(QDialog):
         from .license_ui import settings
         from .updates import show_update_status
         self.settings_button = QPushButton(tr('설정·도움말'))
+        set_action_icon(self.settings_button, 'settings')
         self.settings_button.setAutoDefault(False)
-        settings_menu = QMenu(self.settings_button)
-        settings_menu.addAction(tr('라이선스')).triggered.connect(lambda: settings(self))
-        settings_menu.addAction(tr('업데이트')).triggered.connect(lambda: show_update_status(self))
+        settings_menu = action_menu(self.settings_button)
+        settings_menu.addAction(action_icon('license', settings_menu), tr('라이선스')).triggered.connect(lambda: settings(self))
+        settings_menu.addAction(action_icon('update', settings_menu), tr('업데이트')).triggered.connect(lambda: show_update_status(self))
         self.settings_button.setMenu(settings_menu)
         footer.addWidget(self.settings_button)
         layout.addLayout(footer)
@@ -283,12 +289,13 @@ class PdfViewer(QDialog):
         from .tool_catalog import CATEGORIES, find_tools
         for group in CATEGORIES:
             menu = self.more_features_menu.addMenu(tr(group.title))
+            menu.menuAction().setIcon(tool_icon('', group.key, menu))
             for entry in find_tools(category=group.key):
-                action = menu.addAction(tr(entry.title))
+                action = menu.addAction(tool_icon(entry.key, entry.category, menu), tr(entry.title))
                 action.triggered.connect(lambda checked=False, tool=entry.key: self.diagnostic_action(tool))
         if self.suggested_name:
             self.more_features_menu.addSeparator()
-            suggested_name_action = self.more_features_menu.addAction(tr('제목으로 파일명 추천'))
+            suggested_name_action = self.more_features_menu.addAction(action_icon('rename', self.more_features_menu), tr('제목으로 파일명 추천'))
             suggested_name_action.triggered.connect(lambda: self.diagnostic_action('rename'))
         self.update_sidebar_mode_action()
 
@@ -400,6 +407,8 @@ class PdfViewer(QDialog):
     def update_sidebar_mode_action(self):
         if hasattr(self, 'sidebar_mode_action'):
             self.sidebar_mode_action.setText(tr('목록 보기') if self.thumbnail_mode else tr('썸네일 보기'))
+            self.sidebar_mode_action.setIcon(action_icon('list' if self.thumbnail_mode else 'thumbnail',
+                                                       self.view_tools_button.menu()))
 
     def _mark_page_edit(self):
         self.dirty = True
@@ -1022,10 +1031,12 @@ class SlideShow(QDialog):
         controls.setContentsMargins(12, 8, 12, 0)
         controls.addStretch()
         self.presenter_button = QPushButton(tr('발표자 화면'))
+        set_action_icon(self.presenter_button, 'presenter')
         self.presenter_button.setAutoDefault(False)
         self.presenter_button.clicked.connect(lambda: self.show_presenter())
         controls.addWidget(self.presenter_button)
         self.ink_button = QPushButton(tr('판서 · P'))
+        set_action_icon(self.ink_button, 'pen')
         self.ink_button.setCheckable(True)
         self.ink_button.setAutoDefault(False)
         self.ink_button.toggled.connect(lambda checked: self.canvas.toggle_ink() if hasattr(self, 'canvas') and checked != self.canvas.ink_enabled else None)
@@ -1039,10 +1050,12 @@ class SlideShow(QDialog):
         self.ink_tools.setToolTip(tr('형광펜: 텍스트 줄에 드래그 · 임시 펜: 3초 뒤 사라짐 · 도형: 원·사각형·화살표·별·체크 보정'))
         self.ink_tools.activated.connect(lambda _: self.select_ink_tool(self.ink_tools.currentData()))
         self.bake_button = QPushButton(tr('판서 저장'))
+        set_action_icon(self.bake_button, 'save')
         self.bake_button.setAutoDefault(False)
         self.bake_button.clicked.connect(self.bake_annotations)
         controls.addWidget(self.bake_button)
         self.exit_button = QPushButton(tr('전체화면 종료 · Esc'))
+        set_action_icon(self.exit_button, 'close')
         self.exit_button.setAutoDefault(False)
         self.exit_button.setFocusPolicy(Qt.NoFocus)
         self.exit_button.clicked.connect(self.reject)

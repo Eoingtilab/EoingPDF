@@ -62,6 +62,10 @@ if ($LASTEXITCODE -ne 0) { throw '직인·확장 판서 Windows UI 테스트 실
 if ($LASTEXITCODE -ne 0) { throw 'PDF 작업 공간·도구 검색·변경 내역 UI 테스트 실패' }
 & $pythonExe tests\reliability_ui_smoke.py
 if ($LASTEXITCODE -ne 0) { throw '일상 PDF 탐색·판서 취소·뷰어 자원 해제 UI 테스트 실패' }
+& $pythonExe tests\icon_ui_smoke.py --scale 1.25
+if ($LASTEXITCODE -ne 0) { throw '125% 배율의 도구 아이콘·테마·버튼 화면 검사 실패' }
+& $pythonExe tests\icon_ui_smoke.py --scale 1.5
+if ($LASTEXITCODE -ne 0) { throw '150% 배율의 도구 아이콘·테마·버튼 화면 검사 실패' }
 if ($env:EOING_SKIP_NATIVE -ne '1') {
     & .\native\build_hwp.cmd
     if ($LASTEXITCODE -ne 0) { throw 'Hancom native guard build failed' }

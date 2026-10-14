@@ -4,6 +4,7 @@ from PySide6.QtGui import QColor, QImageReader, QPixmap, QIcon
 from PySide6.QtWidgets import QWidget, QPushButton, QLabel, QComboBox, QDoubleSpinBox, QSpinBox, QCheckBox, QColorDialog, QFileDialog, QApplication
 from .flow_layout import FlowLayout
 from .localization import tr
+from .action_icons import action_icon, set_action_icon
 
 
 class InkToolbar(QWidget):
@@ -14,6 +15,9 @@ class InkToolbar(QWidget):
         self.snipper = ScreenSnipper(self)
         self.snipper.captured.connect(self.insert)
         row = FlowLayout(self)
+        for index in range(slides.ink_tools.count()):
+            key = slides.ink_tools.itemData(index)
+            slides.ink_tools.setItemIcon(index, action_icon(key, palette_source=slides.ink_tools))
         row.addWidget(slides.ink_tools)
         self.buttons = {}
         for key, text, callback in (
@@ -24,6 +28,7 @@ class InkToolbar(QWidget):
             ('delete', tr('선택 삭제'), lambda: slides.canvas.delete_selected()),
             ('clear', tr('전체 지우기'), lambda: slides.canvas.clear_ink())):
             button = QPushButton(text)
+            set_action_icon(button, key)
             button.setAutoDefault(False)
             button.clicked.connect(callback)
             row.addWidget(button)
@@ -38,6 +43,7 @@ class InkToolbar(QWidget):
         self.colors.activated.connect(lambda _: self.apply_color(QColor(self.colors.currentData())))
         row.addWidget(self.colors)
         custom = QPushButton(tr('다른 색'))
+        set_action_icon(custom, 'color')
         custom.setAutoDefault(False)
         custom.clicked.connect(self.choose_color)
         row.addWidget(custom)
@@ -63,6 +69,7 @@ class InkToolbar(QWidget):
                                      ('paste', tr('붙여넣기 · Ctrl+V'), self.paste),
                                      ('capture', tr('화면 캡처'), self.capture)):
             button = QPushButton(label)
+            set_action_icon(button, key)
             button.setAutoDefault(False)
             button.clicked.connect(callback)
             row.addWidget(button)

@@ -3,9 +3,11 @@ from dataclasses import dataclass
 import hashlib
 from PySide6.QtCore import Qt, QPointF, QRectF, QTimer
 from PySide6.QtGui import QPainter, QPen, QColor, QPixmap, QCursor
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton, QDoubleSpinBox, QFileDialog, QDialog, QMessageBox
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QDoubleSpinBox, QFileDialog, QDialog, QMessageBox
 from .localization import tr
 from .stamping import prepare_image, place_prepared
+from .action_icons import set_action_icon
+from .flow_layout import FlowLayout
 
 UNIT = 72 / 25.4
 
@@ -156,22 +158,34 @@ class StampEditor:
         self.gesture_label = None
         self.overlay = StampOverlay(self)
         self.panel = QWidget(viewer)
-        row = QHBoxLayout(self.panel)
-        row.setContentsMargins(0, 0, 0, 0)
+        layout = QVBoxLayout(self.panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
         self.hint = QLabel(tr('끌어서 이동 · 오른쪽 아래 모서리로 크기 조절 · 마지막에 저장'))
         self.hint.setWordWrap(True)
-        row.addWidget(self.hint, 1)
-        for label, callback in ((tr('이미지 추가'), self.choose_image), (tr('도장 보관함'), self.choose_vault)):
+        layout.addWidget(self.hint)
+        controls = QWidget(self.panel)
+        row = FlowLayout(controls)
+        row.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(controls)
+        for label, callback, icon in ((tr('이미지 추가'), self.choose_image, 'image'),
+                                      (tr('도장 보관함'), self.choose_vault, 'vault')):
             button = QPushButton(label)
+            set_action_icon(button, icon)
             button.clicked.connect(callback)
             row.addWidget(button)
-        row.addWidget(QLabel(tr('너비')))
+        width_group = QWidget(controls)
+        width_row = QHBoxLayout(width_group)
+        width_row.setContentsMargins(0, 0, 0, 0)
+        width_row.addWidget(QLabel(tr('너비')))
         self.width = QDoubleSpinBox()
         self.width.setRange(1, 1000)
         self.width.setSuffix(' mm')
         self.width.valueChanged.connect(self.resize_selected)
-        row.addWidget(self.width)
+        width_row.addWidget(self.width)
+        row.addWidget(width_group)
         self.remove_button = QPushButton(tr('선택한 직인 삭제'))
+        set_action_icon(self.remove_button, 'delete')
         self.remove_button.clicked.connect(self.remove_selected)
         row.addWidget(self.remove_button)
         viewer.layout().insertWidget(2, self.panel)

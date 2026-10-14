@@ -1,6 +1,6 @@
 """Searchable tool library with a compact, keyboard-friendly task selector."""
 from PySide6.QtCore import Qt, Signal, QSize, QRect
-from PySide6.QtGui import QFont, QShortcut, QKeySequence, QPalette
+from PySide6.QtGui import QFont, QShortcut, QKeySequence, QPalette, QIcon
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QComboBox, QListWidget, QListWidgetItem, QPushButton, QStyledItemDelegate,
     QStyleOptionViewItem, QStyle, QAbstractItemView)
@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineE
 from .localization import tr
 from .sdk_theme import apply_style
 from .tool_catalog import CATEGORIES, BY_KEY, find_tools
+from .action_icons import set_action_icon, tool_icon
 
 
 class ToolDelegate(QStyledItemDelegate):
@@ -16,7 +17,7 @@ class ToolDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index):
         panel = QStyleOptionViewItem(option)
         self.initStyleOption(panel, index)
-        width = max(120, self.parent().viewport().width() - 28)
+        width = max(120, self.parent().viewport().width() - 56)
         font = QFont(panel.font)
         font.setBold(True)
         from PySide6.QtGui import QFontMetrics
@@ -24,12 +25,13 @@ class ToolDelegate(QStyledItemDelegate):
             Qt.TextWordWrap, index.data(Qt.UserRole + 1))
         description = QFontMetrics(panel.font).boundingRect(QRect(0, 0, width, 10000),
             Qt.TextWordWrap, index.data(Qt.UserRole + 2))
-        return QSize(width + 28, max(68, title.height() + description.height() + 24))
+        return QSize(width + 56, max(68, title.height() + description.height() + 24))
 
     def paint(self, painter, option, index):
         panel = QStyleOptionViewItem(option)
         self.initStyleOption(panel, index)
         panel.text = ''
+        panel.icon = QIcon()
         style = panel.widget.style() if panel.widget else self.parent().style()
         style.drawControl(QStyle.CE_ItemViewItem, panel, painter, panel.widget)
         painter.save()
@@ -41,6 +43,10 @@ class ToolDelegate(QStyledItemDelegate):
         font.setBold(True)
         painter.setFont(font)
         bounds = option.rect.adjusted(14, 10, -14, -10)
+        icon = index.data(Qt.DecorationRole)
+        if isinstance(icon, QIcon):
+            icon.paint(painter, QRect(bounds.left(), bounds.top() + 2, 16, 16))
+        bounds.adjust(28, 0, 0, 0)
         title = painter.boundingRect(bounds, Qt.TextWordWrap, index.data(Qt.UserRole + 1))
         painter.drawText(title, Qt.TextWordWrap, index.data(Qt.UserRole + 1))
         painter.setFont(panel.font)
@@ -67,10 +73,7 @@ class ToolBrowser(QDialog):
             'QListWidget::item {border-bottom:1px solid #e7ecf3;}'
             'QListWidget::item:selected {background:#dbe6ff;color:#183b8f;}'
             'QListWidget::item:hover:!selected {background:#f1f5fb;}'
-            'QPushButton {padding:8px 14px;min-height:20px;}'
-            'QPushButton#recommended {background:#edf2ff;color:#183b8f;'
-            'border:1px solid #b9cbed;border-radius:6px;}'
-            'QPushButton#recommended:hover {background:#dbe6ff;}')
+            'QPushButton {padding:8px 14px;min-height:20px;}')
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(10)
@@ -87,7 +90,7 @@ class ToolBrowser(QDialog):
             if self.allowed_keys is not None and key not in self.allowed_keys:
                 continue
             button = QPushButton(title)
-            button.setObjectName('recommended')
+            set_action_icon(button, 'play' if key == 'presentation' else 'stamp')
             button.setAutoDefault(False)
             button.setToolTip(tr(BY_KEY[key].description))
             button.clicked.connect(lambda checked=False, tool=key: self.choose(tool))
@@ -128,11 +131,13 @@ class ToolBrowser(QDialog):
         buttons = QHBoxLayout()
         buttons.addStretch()
         self.open_button = QPushButton(tr('선택한 도구 열기'))
-        self.open_button.setObjectName('primary')
+        set_action_icon(self.open_button, 'open')
+        self.open_button.setObjectName('openToolAction')
         self.open_button.setDefault(True)
         self.open_button.clicked.connect(self.open_selected)
         buttons.addWidget(self.open_button)
         self.close_button = QPushButton(tr('닫기'))
+        set_action_icon(self.close_button, 'close')
         self.close_button.clicked.connect(self.reject)
         buttons.addWidget(self.close_button)
         layout.addLayout(buttons)
@@ -167,6 +172,7 @@ class ToolBrowser(QDialog):
             description = tr('{category} · {description}',
                 category=tr(groups[entry.category].title), description=tr(entry.description))
             item = QListWidgetItem(title + '\n' + description)
+            item.setIcon(tool_icon(entry.key, entry.category, palette_source=self.results))
             item.setData(Qt.UserRole, entry.key)
             item.setData(Qt.UserRole + 1, title)
             item.setData(Qt.UserRole + 2, description)
