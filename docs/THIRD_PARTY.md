@@ -16,7 +16,7 @@
 한글 자동화의 상업적 이용은 한컴의 별도 이용 조건을 확인해야 한다.
 https://developer.hancom.com/hwpautomation
 
-현재 배포는 사용자 로컬 검증용이다. 외부 배포 시 선택한 구성요소 라이선스에 맞는 소스 제공과 고지를 함께 구성한다.
+본 프로젝트의 소스와 버전 태그는 `Eoingtilab/EoingPDF`, 공식 실행파일은 `Eoingtilab/nalapps-releases`에서 공개 배포한다. 배포 패키지에 프로젝트 LICENSE와 구성요소 고지를 포함하며, 선택한 구성요소 라이선스에 따른 소스 제공·고지 조건을 계속 관리한다.
 
 - 로컬 검색 모델: sentence-transformers/static-similarity-mrl-multilingual-v1, Apache-2.0. 고정 리비전 b68f4122911bcffcd6e1f695f2d99cd6788972d8. 256차원 및 토큰별 int8로 변환했으며 원본 모델 카드, Apache 라이선스 전문, 변경 고지와 해시를 assets/search에 포함한다.
   https://huggingface.co/sentence-transformers/static-similarity-mrl-multilingual-v1
