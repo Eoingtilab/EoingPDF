@@ -340,7 +340,7 @@ PDF 더블클릭 또는 **PDF 열어보기**로 실행합니다. 왼쪽 작은 �
 
 ## 실행 시 자동 업데이트
 
-메인 앱과 PDF 뷰어 실행 후 EDD의 최신 버전을 백그라운드로 확인합니다.
+메인 앱과 PDF 뷰어 실행 후 공식 GitHub 배포 매니페스트의 최신 버전을 백그라운드로 확인합니다.
 새 버전이 있으면 설치 파일을 내려받고, 작업을 방해하지 않는 시점에 자동 설치 후 재실행합니다.
 
 - 저장하지 않은 편집, 실행 중인 작업, 전체화면 슬라이드쇼, 열린 확인창이 있으면 적용을 기다립니다.
@@ -357,7 +357,10 @@ PDF 더블클릭 또는 **PDF 열어보기**로 실행합니다. 왼쪽 작은 �
 3. `Eoingtilab/nalapps-releases`에 `utility-eoingpdf-v{VERSION}` GitHub Release를 만들고 두 EXE를 업로드합니다.
 4. `products/eoingpdf/latest.json`에 최신 버전, 설치/포터블 다운로드 URL, 각각의 SHA-256을 기록합니다.
 5. 이전 버전에서 `지금 확인`을 실행해 새 버전 감지 → 다운로드 → SHA-256 검증 → 교체/설치 흐름을 확인합니다.
-6. app.nal.la의 EDD 상품 26818은 라이선스 활성화/권한 확인용으로 유지하며, 앱 업데이트 버전의 단일 기준으로 사용하지 않습니다.
+6. app.nal.la의 EDD 상품 26818에서 **NallaApps · Release Distribution → 배포 변경 미리보기 → 미리보기된 변경 동기화**를 실행합니다. 공개 `latest.json` 변경과 EDD에 저장된 고객용 다운로드 링크 갱신은 별도로 확인해야 합니다.
+7. EDD의 현재 배포 버전, Primary Asset 파일명·URL·SHA-256이 이번 버전의 설치파일과 일치하는지 확인합니다. 설치형·포터블 링크와 상품 본문의 설치 안내도 함께 확인한 뒤 배포를 완료합니다.
+
+라이선스 활성화·사용 권한은 EDD에서 확인하고, 앱 자동 업데이트의 버전·URL·SHA-256은 공개 GitHub 매니페스트에서 확인합니다. GitHub만 갱신하고 EDD 동기화를 빠뜨리면 사이트 고객 다운로드는 이전 설치파일을 계속 제공할 수 있습니다.
 
 업데이트 매니페스트는 `https://raw.githubusercontent.com/Eoingtilab/nalapps-releases/main/products/eoingpdf/latest.json`을 사용합니다.
 설치형은 `EoingPDF-{VERSION}-Setup-x64.exe`, 단일 실행 포터블은 `EoingPDF-{VERSION}-portable.exe`만 허용합니다.
