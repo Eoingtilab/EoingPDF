@@ -11,6 +11,9 @@ with zipfile.ZipFile(archive_path) as archive:
     names = set(archive.namelist())
     required = {
         'EoingPDF-source/.gitattributes',
+        'EoingPDF-source/PRIVACY.md',
+        'EoingPDF-source/build_store_msix.ps1',
+        'EoingPDF-source/build_store_folder.ps1',
         'EoingPDF-source/src/eoingpdf/distribution.py',
         'EoingPDF-source/src/eoingpdf/staging_dock.py',
         'EoingPDF-source/packaging/onefile.marker',

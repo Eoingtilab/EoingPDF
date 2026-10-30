@@ -3,7 +3,7 @@ from .sdk_theme import apply_style
 from .localization import tr
 from PySide6.QtCore import QThread, Signal, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
 from .licensing import store, LicenseError, STORE_URL, ITEM_ID
 
 
@@ -29,6 +29,7 @@ class LicenseDialog(QDialog):
         super().__init__(parent)
         self.required = required
         self.worker = None
+        self._activation_notice_shown = False
         self.setWindowTitle(tr('어잉PDF · 라이선스 설정'))
         self.setMinimumWidth(490)
         apply_style(self, 'QDialog {background:#f7f9fc;} QLabel {color:#263246;} QLineEdit {background:white;color:#263246;padding:10px;border:1px solid #b9cbed;border-radius:6px;} QPushButton {background:white;color:#263246;padding:9px 14px;border:1px solid #dae2f0;border-radius:6px;min-height:22px;}')
@@ -90,7 +91,11 @@ class LicenseDialog(QDialog):
     def idle(self):
         for widget in (self.key, self.activate, self.check, self.deactivate, self.finish):
             widget.setEnabled(True)
-        if self.required and store().valid_session():
+        if self.required and store().valid_session() and not self._activation_notice_shown:
+            # Set the guard before entering the modal event loop. A repeated
+            # worker-finished notification must not close this dialog early.
+            self._activation_notice_shown = True
+            QMessageBox.information(self, tr('라이선스 활성화'), tr('라이선스가 활성화되었습니다.'))
             self.accept()
 
     def finish_dialog(self):

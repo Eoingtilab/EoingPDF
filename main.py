@@ -22,6 +22,9 @@ if __name__ == '__main__':
     elif len(sys.argv) > 1 and sys.argv[1] == '--license':
         from eoingpdf.license_ui import main
         sys.exit(main())
+    elif len(sys.argv) > 1 and sys.argv[1] == '--license-network-check':
+        from eoingpdf.network_check import main
+        sys.exit(main(sys.argv[2:]))
     elif len(sys.argv) > 1 and sys.argv[1] == '--rollback-update':
         from eoingpdf.localization import tr
         from eoingpdf.updates import latest_backup

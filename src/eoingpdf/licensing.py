@@ -4,10 +4,11 @@ import json
 import os
 import re
 import uuid
+import ssl
 from pathlib import Path
-from urllib.request import Request, build_opener, HTTPRedirectHandler
+from urllib.request import Request, build_opener, HTTPRedirectHandler, HTTPSHandler
 from urllib.parse import urlencode
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 import win32crypt
 import pywintypes
 
@@ -27,12 +28,14 @@ ERRORS = {
 
 
 class LicenseError(Exception):
-    pass
+    def __init__(self, message, *, kind='license'):
+        super().__init__(message)
+        self.kind = kind
 
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise LicenseError(tr('라이선스 서버 주소가 변경되었습니다. 관리자에게 문의해 주세요.'))
+        raise LicenseError(tr('라이선스 서버 주소가 변경되었습니다. 관리자에게 문의해 주세요.'), kind='redirect')
 
 
 def request(action, key, device):
@@ -41,14 +44,23 @@ def request(action, key, device):
     data = urlencode({'edd_action': action, 'item_id': ITEM_ID, 'license': key, 'url': device}).encode()
     req = Request(STORE_URL, data=data, headers={'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'EoingPDF'})
     try:
-        with build_opener(NoRedirect()).open(req, timeout=12) as response:
-            result = json.loads(response.read(65537))
+        with build_opener(NoRedirect(), HTTPSHandler(context=ssl.create_default_context())).open(req, timeout=12) as response:
+            payload = response.read(65537)
+            if len(payload) > 65536:
+                raise ValueError('License response too large')
+            result = json.loads(payload)
     except LicenseError:
         raise
-    except (URLError, OSError, ValueError):
-        raise LicenseError(tr('라이선스 서버에 연결할 수 없습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.')) from None
+    except HTTPError:
+        raise LicenseError(tr('라이선스 서버가 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.'), kind='server') from None
+    except (URLError, OSError) as error:
+        if isinstance(getattr(error, 'reason', error), ssl.SSLError):
+            raise LicenseError(tr('라이선스 서버와 보안 연결을 맺지 못했습니다. PC 날짜와 인증서 설정을 확인해 주세요.'), kind='tls') from None
+        raise LicenseError(tr('라이선스 서버에 연결할 수 없습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.'), kind='connection') from None
+    except ValueError:
+        raise LicenseError(tr('라이선스 서버 응답을 확인할 수 없습니다.'), kind='response') from None
     if not isinstance(result, dict):
-        raise LicenseError(tr('라이선스 서버 응답을 확인할 수 없습니다.'))
+        raise LicenseError(tr('라이선스 서버 응답을 확인할 수 없습니다.'), kind='response')
     if result.get('item_id') not in (None, False, ITEM_ID, str(ITEM_ID)):
         raise LicenseError(tr('다른 상품의 라이선스 응답입니다.'))
     return result

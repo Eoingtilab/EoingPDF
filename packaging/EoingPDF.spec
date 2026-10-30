@@ -1,8 +1,12 @@
 from pathlib import Path
 import os
+from runpy import run_path
 from PyInstaller.utils.hooks import collect_data_files, copy_metadata
 
 root = Path(SPECPATH).parent
+ssl_packaging = run_path(str(root / 'packaging/frozen_ssl.py'))
+ssl_binaries = ssl_packaging['python_ssl_binaries']()
+ssl_data = ssl_packaging['python_ssl_data']()
 onefile = os.environ.get('EOINGPDF_BUILD_ONEFILE') == '1'
 extra_data = [(str(root / 'VERSION'), '.')]
 if onefile:
@@ -10,7 +14,7 @@ if onefile:
                    (str(root / 'build/portable-tools/EoingPDF.Shell.exe'), 'portable_tools')]
 a = Analysis(
     [str(root / 'main.py')], pathex=[str(root / 'src')],
-    binaries=[], datas=[(str(root / 'assets'), 'assets')] + extra_data + collect_data_files('onnxruntime')
+    binaries=ssl_binaries, datas=[(str(root / 'assets'), 'assets')] + extra_data + ssl_data + collect_data_files('onnxruntime')
         + copy_metadata('onnxruntime') + copy_metadata('tokenizers'),
     hiddenimports=['win32timezone'],
     excludes=['PySide6.QtQml', 'PySide6.QtQuick', 'PySide6.QtWebEngineCore', 'tkinter', 'matplotlib'],
@@ -34,6 +38,9 @@ def needed(entry):
         return False
     return True
 a.binaries = [entry for entry in a.binaries if needed(entry)]
+# Explicit inputs alone do not protect against every dependency-resolution
+# path. Replace same-named PHP/other PATH copies in the final collection too.
+a.binaries = ssl_packaging['pin_ssl_binaries'](a.binaries, ssl_binaries)
 a.datas = [entry for entry in a.datas if Path(entry[0]).name.lower() != 'eoingpdf.explorer.dll']
 pyz = PYZ(a.pure)
 if onefile:

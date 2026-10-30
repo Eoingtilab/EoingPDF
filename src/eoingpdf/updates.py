@@ -355,11 +355,20 @@ class AutoUpdater:
 
 
 def start_updates(app, window):
+    from .package_context import store_managed_updates
+    if store_managed_updates():
+        app.updater = None
+        app.store_managed_updates = True
+        return
     app.updater = AutoUpdater(app, window, auto_check='--skip-update-once' not in sys.argv)
 
 
 def show_update_status(parent):
     from PySide6.QtWidgets import QApplication, QMessageBox
+    from .package_context import store_managed_updates
+    if store_managed_updates():
+        QMessageBox.information(parent, tr('자동 업데이트'), tr('Microsoft Store 설치판은 Microsoft Store가 업데이트를 관리합니다.'))
+        return
     updater = getattr(QApplication.instance(), 'updater', None)
     if updater:
         updater.check()

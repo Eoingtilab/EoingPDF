@@ -9,8 +9,9 @@ if not re.fullmatch(r'\d+\.\d+\.\d+', version):
     raise ValueError('VERSION 형식을 확인해 주세요.')
 target = root / f'release/EoingPDF-{version}-source.zip'
 folders = ('src', 'native', 'packaging', 'scripts', 'tests', 'docs', 'assets/fonts', 'assets/nalapps-sdk', 'assets/locales', 'assets/search')
-files = ['main.py', 'README.md', 'ROADMAP.md', 'CHANGELOG.md', 'VERSION', 'LICENSE', '.env.example',
-         'requirements.txt', 'requirements-dev.txt', 'pytest.ini', 'build_release.ps1', 'build_portable.ps1', 'build_installer.ps1', 'install-context-menu.cmd',
+files = ['main.py', 'README.md', 'ROADMAP.md', 'CHANGELOG.md', 'VERSION', 'LICENSE', 'PRIVACY.md', '.env.example',
+         'requirements.txt', 'requirements-dev.txt', 'pytest.ini', 'build_release.ps1', 'build_portable.ps1', 'build_installer.ps1',
+         'build_store_msix.ps1', 'build_store_folder.ps1', 'install-context-menu.cmd',
          'uninstall-context-menu.cmd', '.gitignore', '.gitattributes', 'assets/app_icon.png', 'assets/app_icon.ico',
          'assets/pdf_icon.png', 'assets/pdf_icon.ico']
 for folder in folders:

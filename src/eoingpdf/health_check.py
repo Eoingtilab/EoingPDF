@@ -11,6 +11,15 @@ def main(arguments):
         return 2
     report, nonce = Path(arguments[0]), arguments[1]
     try:
+        # Catch a mismatched OpenSSL DLL before accepting an otherwise healthy
+        # frozen PDF runtime. This check is offline and never loads a license.
+        import ssl
+        import http.client
+        from urllib.request import HTTPSHandler, build_opener
+        context = ssl.create_default_context()
+        assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname
+        assert hasattr(http.client, 'HTTPSConnection')
+        assert any(isinstance(handler, HTTPSHandler) for handler in build_opener().handlers)
         if len(arguments) == 4:
             from .updates import current_version, version_tuple
             from .distribution import is_onefile
