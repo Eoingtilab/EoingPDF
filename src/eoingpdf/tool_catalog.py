@@ -77,7 +77,7 @@ _READER_ENTRIES = (
     ToolEntry('form', '양식 입력', '현재 PDF의 입력 칸에 내용을 작성합니다.', 'edit', ('입력란', '표 서식', 'fill form')),
     ToolEntry('table', '표 드래그 복사', '표 영역을 선택해 엑셀에 붙여 넣습니다.', 'export', ('엑셀', '표 추출', 'excel', 'table')),
     ToolEntry('copy_image', '페이지 이미지 복사', '현재 페이지를 이미지로 클립보드에 복사합니다.', 'export', ('캡처', '그림', 'clipboard', 'image')),
-    ToolEntry('viewmode', '페이지 목록 보기 전환', '왼쪽 페이지 목록의 축소판과 목록 보기를 바꿉니다.', 'view', ('사이드바', '썸네일', 'thumbnail')),
+    ToolEntry('viewmode', '페이지 목록 보기 전환', '페이지 목록의 축소판과 목록 보기를 바꿉니다.', 'view', ('사이드바', '썸네일', 'thumbnail')),
 )
 
 ENTRIES = tuple(ToolEntry(key, TOOLS[key][0], description, category, aliases)

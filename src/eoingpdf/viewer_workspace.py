@@ -1,7 +1,8 @@
 """Task-focused reader chrome; editing history belongs to the viewer draft."""
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QWidget,
-                              QPushButton, QLabel, QMenu, QListWidget)
+                              QPushButton, QLabel, QMenu, QListWidget, QScrollArea,
+                              QFrame)
 from .action_icons import action_icon, set_action_icon
 from .flow_layout import FlowLayout
 from .localization import tr
@@ -80,17 +81,26 @@ class WorkspaceHeader(QWidget):
         viewer.close_button = button('닫기', viewer.close, 'close')
         layout.addWidget(quick)
 
-        editing = QWidget(viewer)
+        panel = QScrollArea(viewer)
+        panel.setObjectName('toolsPanel')
+        panel.setWidgetResizable(True)
+        panel.setFixedWidth(210)
+        panel.setFrameShape(QFrame.NoFrame)
+        editing = QWidget()
         editing.setObjectName('editingActions')
-        editing.setFixedWidth(164)
-        self.editing_panel = editing
+        panel.setWidget(editing)
+        self.editing_panel = panel
         row = QVBoxLayout(editing)
-        row.setContentsMargins(8, 8, 8, 8)
-        row.setSpacing(4)
-        heading = QLabel(tr('편집 도구'))
+        row.setContentsMargins(10, 8, 10, 8)
+        row.setSpacing(2)
+        heading = QLabel(tr('모든 도구'))
         heading.setObjectName('toolsHeading')
         row.addWidget(heading)
-        viewer.panel_all_tools_button = button('모든 도구', viewer.show_all_tools, 'tools')
+        viewer.panel_all_tools_button = button('도구 검색', viewer.show_all_tools, 'search')
+        viewer.panel_scan_button = button('스캔·문자 인식', lambda: viewer.show_all_tools('scan'), 'scan')
+        viewer.panel_security_button = button('보안·개인정보', lambda: viewer.show_all_tools('security'), 'security')
+        viewer.panel_export_button = button('복사·내보내기', lambda: viewer.show_all_tools('export'), 'export')
+        viewer.panel_optimize_button = button('압축·복구', lambda: viewer.show_all_tools('optimize'), 'optimize')
         viewer.undo_button = button('실행 취소', viewer.undo_edit, 'undo')
         viewer.redo_button = button('다시 실행', viewer.redo_edit, 'redo')
         viewer.history_button = button('변경 내역', lambda: HistoryDialog(viewer).exec(), 'history')
@@ -120,18 +130,30 @@ class WorkspaceHeader(QWidget):
         viewer.recommended_name_action.setVisible(False)
         viewer.recommended_name_action.triggered.connect(lambda: viewer.diagnostic_action('rename'))
         viewer.view_tools_button.setMenu(menu)
+        for index, item in enumerate((viewer.panel_all_tools_button, viewer.form_button,
+                                      viewer.page_tools_button, viewer.panel_scan_button,
+                                      viewer.panel_security_button, viewer.panel_export_button,
+                                      viewer.panel_optimize_button, viewer.view_tools_button,
+                                      viewer.undo_button, viewer.redo_button,
+                                      viewer.history_button), start=1):
+            row.removeWidget(item)
+            row.insertWidget(index, item)
         row.addStretch(1)
-        viewer.editing_toggle.toggled.connect(editing.setVisible)
+        viewer.editing_toggle.toggled.connect(panel.setVisible)
         viewer.editing_toggle.setAccessibleName(tr('편집 도구'))
         apply_style(self, '''
             QWidget#workspaceHeader {background:#f7f9fc;}
-            QPushButton {padding:7px 12px;border-radius:6px;}
+            QPushButton {background:#f7f9fc; border:0; padding:7px 12px; border-radius:5px;}
+            QPushButton:hover {background:#f1f5fb;}
+            QPushButton:checked {background:#dbe6ff;}
         ''')
         apply_style(editing, '''
-            QWidget#editingActions {background:#eef2f8; border:1px solid #dae2f0; border-radius:8px;}
+            QWidget#editingActions {background:white;}
             QLabel#toolsHeading {color:#263246; font-weight:600; padding:5px;}
-            QPushButton {text-align:left; min-height:0; padding:4px 7px; border-radius:6px;}
+            QPushButton {text-align:left; background:white; min-height:0; padding:6px 7px; border:0; border-radius:5px;}
+            QPushButton:hover {background:#f1f5fb;}
         ''')
+        apply_style(panel, 'QScrollArea#toolsPanel {background:white; border:0; border-radius:0;}')
         for key, callback in (('Ctrl+Z', viewer.undo_edit), ('Ctrl+Y', viewer.redo_edit),
                               ('Ctrl+Shift+Z', viewer.redo_edit), ('Ctrl+Shift+T', viewer.show_all_tools)):
             shortcut = QShortcut(QKeySequence(key), viewer)

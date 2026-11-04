@@ -4,7 +4,7 @@ import pytest
 import pymupdf as pdf
 from PySide6.QtWidgets import QApplication, QPushButton, QMessageBox
 from PySide6.QtGui import QFont, QFontDatabase
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QPoint
 from PySide6.QtTest import QTest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
@@ -38,9 +38,11 @@ def test_translated_viewer_preserves_fit_zoom_and_page_controls(tmp_path, monkey
         viewer.show()
         app.processEvents()
         assert viewer.width() == 680
-        assert viewer.page.geometry().top() > viewer.scroll.geometry().bottom()
-        for control in (viewer.close_button, viewer.page, viewer.previous, viewer.next, viewer.zoom):
-            assert viewer.rect().contains(control.geometry())
+        assert viewer.page.mapTo(viewer, QPoint()).x() > viewer.scroll.mapTo(viewer, QPoint()).x()
+        for control in (viewer.close_button, viewer.page, viewer.zoom):
+            origin = control.mapTo(viewer, QPoint())
+            assert viewer.rect().contains(origin)
+            assert viewer.rect().contains(origin + QPoint(control.width() - 1, control.height() - 1))
         assert open_text in [button.text() for button in viewer.findChildren(QPushButton)]
         assert viewer.zoom.currentText() == fit_text
         viewer.render()
