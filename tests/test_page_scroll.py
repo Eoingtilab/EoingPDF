@@ -52,6 +52,28 @@ def test_end_scroll_next_and_top_scroll_previous(viewer):
     assert bar.value()==bar.maximum()
 
 
+def test_control_wheel_changes_zoom_without_turning_page(viewer):
+    viewer.zoom.setCurrentText('100%')
+    wheel(viewer, 120, modifiers=Qt.ControlModifier)
+    assert viewer.zoom.currentText() == '125%'
+    assert viewer.page.value() == 1
+    wheel(viewer, -120, modifiers=Qt.ControlModifier)
+    assert viewer.zoom.currentText() == '100%'
+    assert viewer.page.value() == 1
+
+
+def test_control_wheel_on_document_changes_zoom(viewer):
+    viewer.zoom.setCurrentText('100%')
+    canvas = viewer.canvas
+    pos = QPointF(canvas.rect().center())
+    event = QWheelEvent(pos, QPointF(canvas.mapToGlobal(pos.toPoint())),
+                        QPoint(), QPoint(0, 120), Qt.NoButton,
+                        Qt.ControlModifier, Qt.NoScrollPhase, False)
+    QApplication.sendEvent(canvas, event)
+    assert viewer.zoom.currentText() == '125%'
+    assert viewer.page.value() == 1
+
+
 def test_small_page_last_page_modifiers_and_horizontal(viewer):
     viewer.page.setValue(3)
     QTest.qWait(50)

@@ -21,7 +21,7 @@ ICON_NAMES = (
     'vault', 'pen', 'highlight', 'eraser', 'select', 'line',
     'rectangle', 'ellipse', 'arrow', 'text', 'color', 'capture',
     'clear', 'presenter', 'fit', 'scan', 'security', 'unlock',
-    'export', 'optimize', 'search', 'watermark',
+    'export', 'optimize', 'search', 'watermark', 'zoom_in', 'zoom_out',
 )
 _ALIASES = {'erase': 'eraser', 'paste': 'copy', 'shape': 'rectangle',
             'ghost': 'pen', 'presentation': 'play', 'slideshow': 'play',
@@ -74,7 +74,13 @@ def _curve(painter, points):
 
 def _draw_symbol(painter, name):
     """Draw on a 16 point grid; every symbol uses the same 1.4 point pen."""
-    if name == 'open':
+    if name in ('zoom_in', 'zoom_out'):
+        painter.drawEllipse(QRectF(2, 2, 9, 9))
+        _polyline(painter, (10, 10), (14, 14))
+        _polyline(painter, (4, 6.5), (9, 6.5))
+        if name == 'zoom_in':
+            _polyline(painter, (6.5, 4), (6.5, 9))
+    elif name == 'open':
         _polyline(painter, (2, 6), (2, 3.5), (6, 3.5), (7.5, 5), (13, 5), (13, 7))
         _polygon(painter, (2, 7), (14, 7), (12.5, 12.5), (2, 12.5))
     elif name == 'play':

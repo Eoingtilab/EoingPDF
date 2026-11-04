@@ -89,6 +89,8 @@ class PdfViewer(QDialog):
         set_action_icon(self.previous, 'previous')
         self.next = QPushButton(tr('다음'))
         set_action_icon(self.next, 'next')
+        for navigation_button in (self.previous, self.next):
+            apply_style(navigation_button, 'QPushButton {padding:7px 5px;}')
         self.page = QSpinBox()
         self.page.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.page.setRange(1, self.count)
@@ -113,9 +115,24 @@ class PdfViewer(QDialog):
         navigation.addLayout(step_controls)
         navigation.addWidget(self.next)
         navigation.addStretch()
+        self.zoom_out_button = QPushButton()
+        set_action_icon(self.zoom_out_button, 'zoom_out')
+        self.zoom_out_button.setFixedSize(34, 36)
+        apply_style(self.zoom_out_button, 'QPushButton {padding:0;}')
+        self.zoom_out_button.setToolTip(tr('축소 · Ctrl+마우스 휠'))
+        self.zoom_out_button.clicked.connect(lambda: self.adjust_zoom(-1))
+        navigation.addWidget(self.zoom_out_button)
         navigation.addWidget(self.zoom)
+        self.zoom_in_button = QPushButton()
+        set_action_icon(self.zoom_in_button, 'zoom_in')
+        self.zoom_in_button.setFixedSize(34, 36)
+        apply_style(self.zoom_in_button, 'QPushButton {padding:0;}')
+        self.zoom_in_button.setToolTip(tr('확대 · Ctrl+마우스 휠'))
+        self.zoom_in_button.clicked.connect(lambda: self.adjust_zoom(1))
+        navigation.addWidget(self.zoom_in_button)
         self.print_button = QPushButton(tr('인쇄 준비'))
         set_action_icon(self.print_button, 'print')
+        apply_style(self.print_button, 'QPushButton {padding:7px 5px;}')
         from .viewer_workspace import action_menu
         print_menu = action_menu(self.print_button)
         for title, action in [(tr('밝은 인쇄용 사본'), 'print_light'), (tr('4쪽 모아찍기'), 'four_up'), (tr('소책자 인쇄 배치'), 'booklet')]:
@@ -135,6 +152,7 @@ class PdfViewer(QDialog):
         self._wheel_bottom_page = None
         self.scroll.interacted.connect(self.clear_scroll_landing)
         self.scroll.verticalScrollBar().sliderMoved.connect(self.clear_scroll_landing)
+        self.scroll.verticalScrollBar().rangeChanged.connect(self._keep_previous_page_bottom)
         self.scroll.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
         from .selection_canvas import SelectionCanvas
         self.canvas = SelectionCanvas()
@@ -148,6 +166,7 @@ class PdfViewer(QDialog):
         self.fit_timer.setSingleShot(True)
         self.fit_timer.timeout.connect(self.render)
         self.scroll.viewport().installEventFilter(self)
+        self.canvas.installEventFilter(self)
         body = QHBoxLayout()
         self.thumbnails = PageSidebar()
         self.thumbnails.setFixedWidth(156)
@@ -912,6 +931,10 @@ class PdfViewer(QDialog):
     def clear_scroll_landing(self, *_):
         self._wheel_bottom_page = None
 
+    def _keep_previous_page_bottom(self, minimum, maximum):
+        if self._wheel_bottom_page == self.page.value():
+            self.scroll.verticalScrollBar().setValue(maximum)
+
     def scroll_page(self, delta):
         target = max(1, min(self.count, self.page.value() + delta))
         if target == self.page.value():
@@ -978,7 +1001,35 @@ class PdfViewer(QDialog):
             self.sniffed_path = self.path
             self.sniffer.start(self.path)
 
+    def adjust_zoom(self, direction, position=None):
+        levels = [50, 75, 100, 125, 150, 200]
+        if self.zoom.currentIndex() == 0:
+            current = 100 * max(100, self.scroll.viewport().width() - 30) / self.visible_page_size[0]
+        else:
+            current = int(self.zoom.currentText()[:-1])
+        candidates = [level for level in levels if level > current + 0.01] if direction > 0 else [level for level in levels if level < current - 0.01]
+        if not candidates:
+            return
+        target = min(candidates) if direction > 0 else max(candidates)
+        viewport = self.scroll.viewport()
+        point = position or viewport.rect().center()
+        canvas_point = self.canvas.mapFrom(viewport, point)
+        x = canvas_point.x() / max(1, self.canvas.width())
+        y = canvas_point.y() / max(1, self.canvas.height())
+        self.zoom.setCurrentText(f'{target}%')
+        self.scroll.horizontalScrollBar().setValue(round(x * self.canvas.width() - point.x()))
+        self.scroll.verticalScrollBar().setValue(round(y * self.canvas.height() - point.y()))
+
     def eventFilter(self, watched, event):
+        if hasattr(self, 'scroll') and watched in (self.scroll.viewport(), self.canvas) and event.type() == QEvent.Wheel and event.modifiers() & Qt.ControlModifier:
+            delta = event.angleDelta().y()
+            if delta:
+                pos = event.position().toPoint()
+                if watched is self.canvas:
+                    pos = self.canvas.mapTo(self.scroll.viewport(), pos)
+                self.adjust_zoom(1 if delta > 0 else -1, pos)
+            event.accept()
+            return True
         if hasattr(self, 'scroll') and watched is self.scroll.viewport() and event.type() == QEvent.Resize and self.zoom.currentIndex() == 0:
             self.fit_timer.start(30)
         return super().eventFilter(watched, event)

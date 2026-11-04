@@ -66,6 +66,12 @@ class WorkspaceHeader(QWidget):
                                              'tools', 'allTools')
         viewer.more_features_button.setToolTip(tr('작업별로 찾거나 이름으로 도구를 검색합니다.'))
         viewer.more_features_menu = action_menu(viewer.more_features_button)
+        viewer.sidebar_toggle = button('페이지 목록', lambda: None, 'thumbnail', 'sidebarToggle')
+        viewer.sidebar_toggle.setCheckable(True)
+        viewer.sidebar_toggle.setChecked(True)
+        viewer.sidebar_toggle.toggled.connect(lambda visible: viewer.thumbnails.setVisible(visible))
+        viewer.editing_toggle = button('편집 도구', lambda: None, 'pages', 'editingToggle')
+        viewer.editing_toggle.setCheckable(True)
         viewer.save_button = button('사본 저장', viewer.save_changes,
                                     'save', 'saveCopyAction')
         viewer.save_button.setToolTip(tr('현재 화면의 변경을 새 PDF로 저장합니다. · Ctrl+S'))
@@ -107,6 +113,9 @@ class WorkspaceHeader(QWidget):
         viewer.recommended_name_action.triggered.connect(lambda: viewer.diagnostic_action('rename'))
         viewer.view_tools_button.setMenu(menu)
         layout.addWidget(editing)
+        editing.setVisible(False)
+        viewer.editing_toggle.toggled.connect(editing.setVisible)
+        viewer.editing_toggle.setAccessibleName(tr('편집 도구'))
         apply_style(self, '''
             QWidget#workspaceHeader {background:#f7f9fc;}
             QPushButton {padding:7px 12px;border-radius:6px;}
