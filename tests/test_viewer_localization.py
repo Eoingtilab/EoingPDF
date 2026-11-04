@@ -38,7 +38,7 @@ def test_translated_viewer_preserves_fit_zoom_and_page_controls(tmp_path, monkey
         viewer.show()
         app.processEvents()
         assert viewer.width() == 680
-        assert viewer.page.mapTo(viewer, QPoint()).x() > viewer.scroll.mapTo(viewer, QPoint()).x()
+        assert viewer.page.mapTo(viewer, QPoint()).y() < viewer.scroll.mapTo(viewer, QPoint()).y()
         for control in (viewer.close_button, viewer.page, viewer.zoom):
             origin = control.mapTo(viewer, QPoint())
             assert viewer.rect().contains(origin)

@@ -2,7 +2,7 @@
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QWidget,
                               QPushButton, QLabel, QMenu, QListWidget, QScrollArea,
-                              QFrame)
+                              QFrame, QMenuBar)
 from .action_icons import action_icon, set_action_icon
 from .flow_layout import FlowLayout
 from .localization import tr
@@ -42,7 +42,60 @@ class WorkspaceHeader(QWidget):
         self.setObjectName('workspaceHeader')
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(2)
+        menu_bar = QMenuBar(self)
+        menu_bar.setObjectName('readerMenuBar')
+        for title, entries in (
+            ('파일', (('PDF 열기', viewer.choose_pdf), ('사본 저장', viewer.save_changes), ('닫기', viewer.close))),
+            ('편집', (('실행 취소', viewer.undo_edit), ('다시 실행', viewer.redo_edit),
+                    ('변경 내역', lambda: HistoryDialog(viewer).exec()))),
+            ('보기', (('페이지 목록', lambda: viewer.sidebar_toggle.toggle()),
+                    ('편집 도구', lambda: viewer.editing_toggle.toggle()),
+                    ('모든 도구', viewer.show_all_tools))),
+            ('창', (('슬라이드쇼 · F5', viewer.start_slideshow),)),
+            ('도움말', (('설정·도움말', lambda: viewer.settings_button.showMenu()),)),
+        ):
+            menu = menu_bar.addMenu(tr(title))
+            for label, callback in entries:
+                menu.addAction(tr(label)).triggered.connect(callback)
+        layout.addWidget(menu_bar)
+        tabs = QWidget(self)
+        tabs.setObjectName('readerTabs')
+        tab_row = QHBoxLayout(tabs)
+        tab_row.setContentsMargins(8, 0, 8, 0)
+        tab_row.setSpacing(0)
+        home = QPushButton(tr('홈'), tabs)
+        viewer.home_button = home
+        home.setObjectName('readerTabButton')
+        set_action_icon(home, 'open')
+        def show_home():
+            parent = viewer.parentWidget()
+            if not viewer.close():
+                return
+            if parent is None:
+                from .app import Window
+                from PySide6.QtWidgets import QApplication
+                parent = Window()
+                QApplication.instance()._eoing_home_window = parent
+            parent.show()
+            parent.raise_()
+            parent.activateWindow()
+        home.clicked.connect(show_home)
+        tab_row.addWidget(home)
+        tools_tab = QPushButton(tr('도구'), tabs)
+        viewer.tools_tab_button = tools_tab
+        tools_tab.setObjectName('readerTabButton')
+        set_action_icon(tools_tab, 'tools')
+        tools_tab.clicked.connect(viewer.show_all_tools)
+        tab_row.addWidget(tools_tab)
+        document_tab = QLabel(viewer.windowTitle(), tabs)
+        document_tab.setObjectName('documentTab')
+        document_tab.setMinimumWidth(160)
+        document_tab.setMaximumWidth(360)
+        viewer.windowTitleChanged.connect(document_tab.setText)
+        tab_row.addWidget(document_tab)
+        tab_row.addStretch(1)
+        layout.addWidget(tabs)
         quick = QWidget(self)
         quick.setObjectName('quickActions')
         row = QuickActionLayout(quick)
@@ -143,6 +196,10 @@ class WorkspaceHeader(QWidget):
         viewer.editing_toggle.setAccessibleName(tr('편집 도구'))
         apply_style(self, '''
             QWidget#workspaceHeader {background:#f7f9fc;}
+            QWidget#readerTabs {background:#f7f9fc; border-bottom:1px solid #dae2f0;}
+            QLabel#documentTab {background:#ffffff; color:#263246; padding:7px 16px; border:1px solid #d0d0d0; border-bottom:0;}
+            QPushButton#readerTabButton {background:#f7f9fc; border-radius:0; padding:7px 12px;}
+            QPushButton#readerTabButton:hover {background:#dbe6ff;}
             QPushButton {background:#f7f9fc; border:0; padding:7px 12px; border-radius:5px;}
             QPushButton:hover {background:#f1f5fb;}
             QPushButton:checked {background:#dbe6ff;}
@@ -172,6 +229,34 @@ class WorkspaceHeader(QWidget):
                                       if history and history.can_redo else tr('다시 실행 · Ctrl+Y'))
         if history:
             viewer.history_button.setText(tr('변경 내역 · {count}', count=history.position))
+
+
+class NavigationStrip(QWidget):
+    """Compact left-hand navigation for showing and hiding page thumbnails."""
+    def __init__(self, viewer):
+        super().__init__(viewer)
+        self.setObjectName('navigationStrip')
+        self.setFixedWidth(42)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(3, 5, 3, 5)
+        button = QPushButton(self)
+        button.setFixedSize(36, 36)
+        button.setCheckable(True)
+        set_action_icon(button, 'thumbnail')
+        button.setToolTip(tr('페이지 목록'))
+        button.setAccessibleName(tr('페이지 목록'))
+        button.toggled.connect(viewer.sidebar_toggle.setChecked)
+        viewer.sidebar_toggle.toggled.connect(button.setChecked)
+        viewer.sidebar_toggle.hide()
+        viewer.thumbnail_rail_button = button
+        layout.addWidget(button)
+        layout.addStretch(1)
+        apply_style(self, '''
+            QWidget#navigationStrip {background:#f7f9fc;}
+            QPushButton {background:#f7f9fc; border:0; border-radius:4px; padding:4px;}
+            QPushButton:hover {background:#f1f5fb;}
+            QPushButton:checked {background:#dbe6ff;}
+        ''')
 
 
 class HistoryDialog(QDialog):

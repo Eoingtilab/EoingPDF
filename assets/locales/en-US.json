@@ -1,4 +1,11 @@
 {
+  "홈": "Home",
+  "도구": "Tools",
+  "파일": "File",
+  "편집": "Edit",
+  "보기": "View",
+  "창": "Window",
+  "도움말": "Help",
   "라이선스 서버가 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.": "The license server could not process the request. Please try again later.",
   "라이선스 서버와 보안 연결을 맺지 못했습니다. PC 날짜와 인증서 설정을 확인해 주세요.": "Could not establish a secure connection to the license server. Check your PC date and certificate settings.",
   "어잉PDF · 라이선스 설정": "EoingPDF · License",

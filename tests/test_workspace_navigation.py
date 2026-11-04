@@ -45,15 +45,31 @@ def test_workspace_panels_and_navigation_keep_current_document(tmp_path, monkeyp
         viewer.page.setValue(2)
         viewer.editing_toggle.click()
         assert not viewer.workspace_header.editing_panel.isVisible()
-        viewer.sidebar_toggle.click()
+        viewer.thumbnail_rail_button.click()
         assert viewer.thumbnails.isVisible()
         viewer.editing_toggle.click()
         assert viewer.workspace_header.editing_panel.isVisible()
         assert viewer.page.value() == 2
-        viewer.sidebar_toggle.click()
+        viewer.thumbnail_rail_button.click()
         assert not viewer.thumbnails.isVisible()
         viewer.toggle_sidebar_mode()
         assert viewer.thumbnails.isVisible() and viewer.sidebar_toggle.isChecked()
         assert path.read_bytes() == original and not viewer.dirty
     finally:
         viewer.close()
+
+
+def test_home_respects_unsaved_changes(tmp_path, monkeypatch):
+    path = Path(tmp_path) / 'document.pdf'
+    with pdf.open() as document:
+        document.new_page()
+        document.save(path)
+    monkeypatch.setattr('eoingpdf.sniffer_ui.MicroSniffer.start', lambda *args, **kwargs: None)
+    viewer = PdfViewer(path)
+    viewer.show()
+    QApplication.processEvents()
+    monkeypatch.setattr(viewer, 'confirm_leave', lambda: False)
+    viewer.home_button.click()
+    assert viewer.isVisible()
+    monkeypatch.setattr(viewer, 'confirm_leave', lambda: True)
+    viewer.close()
