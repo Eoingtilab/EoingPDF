@@ -68,10 +68,11 @@ class WorkspaceHeader(QWidget):
         viewer.more_features_menu = action_menu(viewer.more_features_button)
         viewer.sidebar_toggle = button('페이지 목록', lambda: None, 'thumbnail', 'sidebarToggle')
         viewer.sidebar_toggle.setCheckable(True)
-        viewer.sidebar_toggle.setChecked(True)
+        viewer.sidebar_toggle.setChecked(False)
         viewer.sidebar_toggle.toggled.connect(lambda visible: viewer.thumbnails.setVisible(visible))
         viewer.editing_toggle = button('편집 도구', lambda: None, 'pages', 'editingToggle')
         viewer.editing_toggle.setCheckable(True)
+        viewer.editing_toggle.setChecked(True)
         viewer.save_button = button('사본 저장', viewer.save_changes,
                                     'save', 'saveCopyAction')
         viewer.save_button.setToolTip(tr('현재 화면의 변경을 새 PDF로 저장합니다. · Ctrl+S'))
@@ -79,10 +80,17 @@ class WorkspaceHeader(QWidget):
         viewer.close_button = button('닫기', viewer.close, 'close')
         layout.addWidget(quick)
 
-        editing = QWidget(self)
+        editing = QWidget(viewer)
         editing.setObjectName('editingActions')
-        row = FlowLayout(editing)
-        row.setContentsMargins(0, 0, 0, 0)
+        editing.setFixedWidth(164)
+        self.editing_panel = editing
+        row = QVBoxLayout(editing)
+        row.setContentsMargins(8, 8, 8, 8)
+        row.setSpacing(4)
+        heading = QLabel(tr('편집 도구'))
+        heading.setObjectName('toolsHeading')
+        row.addWidget(heading)
+        viewer.panel_all_tools_button = button('모든 도구', viewer.show_all_tools, 'tools')
         viewer.undo_button = button('실행 취소', viewer.undo_edit, 'undo')
         viewer.redo_button = button('다시 실행', viewer.redo_edit, 'redo')
         viewer.history_button = button('변경 내역', lambda: HistoryDialog(viewer).exec(), 'history')
@@ -112,13 +120,17 @@ class WorkspaceHeader(QWidget):
         viewer.recommended_name_action.setVisible(False)
         viewer.recommended_name_action.triggered.connect(lambda: viewer.diagnostic_action('rename'))
         viewer.view_tools_button.setMenu(menu)
-        layout.addWidget(editing)
-        editing.setVisible(False)
+        row.addStretch(1)
         viewer.editing_toggle.toggled.connect(editing.setVisible)
         viewer.editing_toggle.setAccessibleName(tr('편집 도구'))
         apply_style(self, '''
             QWidget#workspaceHeader {background:#f7f9fc;}
             QPushButton {padding:7px 12px;border-radius:6px;}
+        ''')
+        apply_style(editing, '''
+            QWidget#editingActions {background:#eef2f8; border:1px solid #dae2f0; border-radius:8px;}
+            QLabel#toolsHeading {color:#263246; font-weight:600; padding:5px;}
+            QPushButton {text-align:left; min-height:0; padding:4px 7px; border-radius:6px;}
         ''')
         for key, callback in (('Ctrl+Z', viewer.undo_edit), ('Ctrl+Y', viewer.redo_edit),
                               ('Ctrl+Shift+Z', viewer.redo_edit), ('Ctrl+Shift+T', viewer.show_all_tools)):
