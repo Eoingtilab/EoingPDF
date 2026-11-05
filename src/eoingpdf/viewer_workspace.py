@@ -82,19 +82,7 @@ class WorkspaceHeader(QWidget):
         viewer.stamp_button = button('직인·서명 넣기', viewer.insert_stamp, 'stamp', 'insertStamp')
         viewer.stamp_button.setToolTip(tr('JPG·PNG의 흰 배경을 제거하고 위치와 크기를 직접 조절합니다.'))
         layout.addWidget(viewer.stamp_button)
-        help_bar = QMenuBar(self)
-        self.help_bar = help_bar
-        help_bar.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        help_menu = help_bar.addMenu(tr('도움말'))
-        self._menus.append(help_menu)
-        help_menu.addAction(tr('설정·도움말')).triggered.connect(
-            lambda: viewer.settings_button.showMenu())
-        layout.addWidget(help_bar)
-        viewer.tools_tab_button = button('도구', viewer.show_all_tools, 'tools', 'allTools')
-        viewer.more_features_button = viewer.tools_tab_button
-        viewer.more_features_button.setToolTip(tr('작업별로 찾거나 이름으로 도구를 검색합니다.'))
-        viewer.more_features_menu = action_menu(viewer.more_features_button)
-        layout.addWidget(viewer.tools_tab_button)
+        viewer.more_features_menu = action_menu(viewer)
         layout.addStretch(1)
         viewer.save_button = button('사본 저장', viewer.save_changes, 'save', 'saveCopyAction')
         viewer.save_button.setToolTip(tr('현재 화면의 변경을 새 PDF로 저장합니다. · Ctrl+S'))
@@ -105,7 +93,7 @@ class WorkspaceHeader(QWidget):
         # Kept as an alias for existing icon and accessibility health checks.
         viewer.open_button = viewer.home_button
         self._compact_buttons = [(viewer.home_button, tr('홈')), (viewer.close_button, tr('닫기')),
-                                 (viewer.save_button, tr('사본 저장')), (viewer.tools_tab_button, tr('도구')),
+                                 (viewer.save_button, tr('사본 저장')),
                                  (viewer.slideshow_button, tr('슬라이드쇼 · F5')),
                                  (viewer.stamp_button, tr('직인·서명 넣기'))]
 

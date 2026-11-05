@@ -52,7 +52,7 @@ def main():
     scale = viewer.canvas.width() / viewer.visible_page_size[0]
     viewer.scroll.ensureVisible(round(410 * scale), round(600 * scale), 150, 150)
     QTest.qWait(20)
-    assert viewer.stamp_button.geometry().right() < viewer.more_features_button.geometry().left()
+    assert viewer.stamp_button.geometry().right() < viewer.save_button.geometry().left()
     assert viewer.close_button.geometry().right() < viewer.width()
     viewer.grab().save(str(folder / 'stamp-on-current-pdf.png'))
     viewer.stamp_editor.reset()

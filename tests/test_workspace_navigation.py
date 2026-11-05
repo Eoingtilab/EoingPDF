@@ -3,10 +3,11 @@ from pathlib import Path
 
 import pymupdf as pdf
 from PySide6.QtCore import QPoint
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QPushButton
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from eoingpdf.viewer import PdfViewer
+from eoingpdf.localization import tr
 
 
 def test_workspace_categories_open_the_matching_tool_groups(tmp_path, monkeypatch):
@@ -92,15 +93,15 @@ def test_header_is_one_row_and_tools_are_not_duplicated(tmp_path, monkeypatch):
             QApplication.processEvents()
             controls = (viewer.home_button, viewer.workspace_header.menu_bar,
                         viewer.slideshow_button, viewer.stamp_button,
-                        viewer.workspace_header.help_bar, viewer.tools_tab_button,
                         viewer.save_button, viewer.close_button)
             centers = [item.mapTo(viewer, item.rect().center()) for item in controls]
             assert max(point.y() for point in centers) - min(point.y() for point in centers) <= 2
             assert all(left.x() < right.x() for left, right in zip(centers, centers[1:]))
             assert all(viewer.rect().contains(item.mapTo(viewer, QPoint(item.width() - 1, item.height() - 1)))
                        for item in controls)
-        assert viewer.more_features_button is viewer.tools_tab_button
-        viewer.tools_tab_button.click()
+        assert not viewer.workspace_header.findChildren(QPushButton, 'allTools')
+        assert [menu.title() for menu in viewer.workspace_header._menus] == [tr(x) for x in ('파일', '편집', '보기', '창')]
+        viewer.panel_all_tools_button.click()
         assert len(calls) == 1
         view_menu = viewer.workspace_header._menus[2]
         view_menu.actions()[1].trigger()

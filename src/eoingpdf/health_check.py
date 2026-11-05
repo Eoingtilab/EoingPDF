@@ -51,7 +51,7 @@ def main(arguments):
                 # actions. Theme / DPI visual checks run in the Windows gate.
                 from PySide6.QtGui import QIcon
                 for button in (window.open_button, window.slideshow_button, window.stamp_button,
-                               window.more_features_button, window.save_button, window.close_button,
+                               window.panel_all_tools_button, window.save_button, window.close_button,
                                window.undo_button, window.redo_button, window.history_button,
                                window.form_button, window.page_tools_button, window.view_tools_button,
                                window.previous, window.next, window.print_button, window.settings_button):

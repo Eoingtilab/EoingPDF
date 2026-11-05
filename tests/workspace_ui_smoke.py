@@ -76,7 +76,7 @@ def main():
                     assert viewer.size().width() == width
                     assert viewer.scroll.height() > 120
                     for widget in (viewer.open_button, viewer.slideshow_button, viewer.stamp_button,
-                                   viewer.more_features_button, viewer.save_button, viewer.close_button,
+                                   viewer.panel_all_tools_button, viewer.save_button, viewer.close_button,
                                    viewer.undo_button, viewer.redo_button, viewer.history_button,
                                    viewer.form_button, viewer.page_tools_button, viewer.view_tools_button,
                                    viewer.page, viewer.zoom, viewer.print_button):

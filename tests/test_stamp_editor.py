@@ -84,7 +84,7 @@ def test_toolbar_and_reorder_keep_stamps_on_their_page(tmp_path, monkeypatch):
     viewer = PdfViewer(source)
     viewer.show()
     QTest.qWait(50)
-    assert viewer.stamp_button.geometry().right() < viewer.more_features_button.geometry().left()
+    assert viewer.stamp_button.geometry().right() < viewer.save_button.geometry().left()
     QTest.mouseClick(viewer.stamp_button, Qt.LeftButton)
     assert viewer.stamp_editor.stamps and viewer.dirty
     viewer.move_current_page(1)
