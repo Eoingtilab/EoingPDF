@@ -43,7 +43,8 @@ def test_translated_viewer_preserves_fit_zoom_and_page_controls(tmp_path, monkey
             origin = control.mapTo(viewer, QPoint())
             assert viewer.rect().contains(origin)
             assert viewer.rect().contains(origin + QPoint(control.width() - 1, control.height() - 1))
-        assert open_text in [button.text() for button in viewer.findChildren(QPushButton)]
+        file_menu = viewer.workspace_header._menus[0]
+        assert open_text in [action.text() for action in file_menu.actions()]
         assert viewer.zoom.currentText() == fit_text
         viewer.render()
         assert viewer.canvas.pixmap() is not None and not viewer.canvas.pixmap().isNull()

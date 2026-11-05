@@ -2,9 +2,8 @@
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QWidget,
                               QPushButton, QLabel, QMenu, QListWidget, QScrollArea,
-                              QFrame, QMenuBar)
+                              QFrame, QMenuBar, QSizePolicy)
 from .action_icons import action_icon, set_action_icon
-from .flow_layout import FlowLayout
 from .localization import tr
 from .sdk_theme import apply_style
 
@@ -15,59 +14,25 @@ def action_menu(parent):
     return menu
 
 
-class QuickActionLayout(FlowLayout):
-    """Keep file actions at the right when the full row fits; wrap when narrow."""
-    def arrange(self, rect, test):
-        margins = self.contentsMargins()
-        area = rect.adjusted(margins.left(), margins.top(), -margins.right(), -margins.bottom())
-        sizes = [item.sizeHint() for item in self.items]
-        total = sum(size.width() for size in sizes) + self.spacing() * max(0, len(sizes) - 1)
-        if total > area.width():
-            return super().arrange(rect, test)
-        from PySide6.QtCore import QRect
-        x = area.x()
-        for index, (item, size) in enumerate(zip(self.items, sizes)):
-            if index == len(sizes) - 2:
-                x += area.width() - total
-            if not test:
-                item.setGeometry(QRect(x, area.y(), size.width(), size.height()))
-            x += size.width() + self.spacing()
-        return max((size.height() for size in sizes), default=0) + margins.top() + margins.bottom()
-
-
 class WorkspaceHeader(QWidget):
     def __init__(self, viewer):
         super().__init__(viewer)
         self.viewer = viewer
         self.setObjectName('workspaceHeader')
-        layout = QVBoxLayout(self)
+        layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
-        menu_bar = QMenuBar(self)
-        menu_bar.setObjectName('readerMenuBar')
-        for title, entries in (
-            ('파일', (('PDF 열기', viewer.choose_pdf), ('사본 저장', viewer.save_changes), ('닫기', viewer.close))),
-            ('편집', (('실행 취소', viewer.undo_edit), ('다시 실행', viewer.redo_edit),
-                    ('변경 내역', lambda: HistoryDialog(viewer).exec()))),
-            ('보기', (('페이지 목록', lambda: viewer.sidebar_toggle.toggle()),
-                    ('편집 도구', lambda: viewer.editing_toggle.toggle()),
-                    ('모든 도구', viewer.show_all_tools))),
-            ('창', (('슬라이드쇼 · F5', viewer.start_slideshow),)),
-            ('도움말', (('설정·도움말', lambda: viewer.settings_button.showMenu()),)),
-        ):
-            menu = menu_bar.addMenu(tr(title))
-            for label, callback in entries:
-                menu.addAction(tr(label)).triggered.connect(callback)
-        layout.addWidget(menu_bar)
-        tabs = QWidget(self)
-        tabs.setObjectName('readerTabs')
-        tab_row = QHBoxLayout(tabs)
-        tab_row.setContentsMargins(8, 0, 8, 0)
-        tab_row.setSpacing(0)
-        home = QPushButton(tr('홈'), tabs)
-        viewer.home_button = home
-        home.setObjectName('readerTabButton')
-        set_action_icon(home, 'open')
+
+        def button(text, callback, icon, name=''):
+            result = QPushButton(tr(text))
+            result.setAutoDefault(False)
+            result.setObjectName(name)
+            result.setAccessibleName(tr(text))
+            result.setToolTip(tr(text))
+            set_action_icon(result, icon)
+            result.clicked.connect(callback)
+            return result
+
         def show_home():
             parent = viewer.parentWidget()
             if not viewer.close():
@@ -80,60 +45,74 @@ class WorkspaceHeader(QWidget):
             parent.show()
             parent.raise_()
             parent.activateWindow()
-        home.clicked.connect(show_home)
-        tab_row.addWidget(home)
-        tools_tab = QPushButton(tr('도구'), tabs)
-        viewer.tools_tab_button = tools_tab
-        tools_tab.setObjectName('readerTabButton')
-        set_action_icon(tools_tab, 'tools')
-        tools_tab.clicked.connect(viewer.show_all_tools)
-        tab_row.addWidget(tools_tab)
-        document_tab = QLabel(viewer.windowTitle(), tabs)
-        document_tab.setObjectName('documentTab')
-        document_tab.setMinimumWidth(160)
-        document_tab.setMaximumWidth(360)
-        viewer.windowTitleChanged.connect(document_tab.setText)
-        tab_row.addWidget(document_tab)
-        tab_row.addStretch(1)
-        layout.addWidget(tabs)
-        quick = QWidget(self)
-        quick.setObjectName('quickActions')
-        row = QuickActionLayout(quick)
-        row.setContentsMargins(0, 0, 0, 0)
 
-        def button(text, callback, icon, name=''):
-            result = QPushButton(tr(text))
-            result.setAutoDefault(False)
-            result.setObjectName(name)
-            set_action_icon(result, icon)
-            result.clicked.connect(callback)
-            row.addWidget(result)
-            return result
-
-        viewer.open_button = button('PDF 열기', viewer.choose_pdf, 'open')
-        viewer.slideshow_button = button('슬라이드쇼 · F5', viewer.start_slideshow,
-                                         'play', 'slideshowAction')
-        viewer.slideshow_button.setToolTip(tr('현재 페이지부터 전체 화면으로 발표합니다.'))
-        viewer.stamp_button = button('직인·서명 넣기', viewer.insert_stamp, 'stamp', 'insertStamp')
-        viewer.stamp_button.setToolTip(tr('JPG·PNG의 흰 배경을 제거하고 위치와 크기를 직접 조절합니다.'))
-        viewer.more_features_button = button('모든 도구', viewer.show_all_tools,
-                                             'tools', 'allTools')
-        viewer.more_features_button.setToolTip(tr('작업별로 찾거나 이름으로 도구를 검색합니다.'))
-        viewer.more_features_menu = action_menu(viewer.more_features_button)
-        viewer.sidebar_toggle = button('페이지 목록', lambda: None, 'thumbnail', 'sidebarToggle')
+        viewer.home_button = button('홈', show_home, 'open', 'homeAction')
+        layout.addWidget(viewer.home_button)
+        # Internal controls keep the existing page and panel state in one place;
+        # the visible controls are the thumbnail rail and the View menu.
+        viewer.sidebar_toggle = QPushButton(self)
         viewer.sidebar_toggle.setCheckable(True)
-        viewer.sidebar_toggle.setChecked(False)
         viewer.sidebar_toggle.toggled.connect(lambda visible: viewer.thumbnails.setVisible(visible))
-        viewer.editing_toggle = button('편집 도구', lambda: None, 'pages', 'editingToggle')
+        viewer.sidebar_toggle.hide()
+        viewer.editing_toggle = QPushButton(self)
         viewer.editing_toggle.setCheckable(True)
         viewer.editing_toggle.setChecked(True)
-        viewer.save_button = button('사본 저장', viewer.save_changes,
-                                    'save', 'saveCopyAction')
+        viewer.editing_toggle.hide()
+
+        menu_bar = QMenuBar(self)
+        self.menu_bar = menu_bar
+        self._menus = []
+        menu_bar.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        for title, entries in (
+            ('파일', (('PDF 열기', viewer.choose_pdf), ('사본 저장', viewer.save_changes), ('닫기', viewer.close))),
+            ('편집', (('실행 취소', viewer.undo_edit), ('다시 실행', viewer.redo_edit),
+                    ('변경 내역', lambda: HistoryDialog(viewer).exec()))),
+            ('보기', (('페이지 목록', lambda: viewer.sidebar_toggle.toggle()),
+                    ('도구 목록 표시', lambda: viewer.editing_toggle.toggle()))),
+            ('창', (('슬라이드쇼 · F5', viewer.start_slideshow),)),
+        ):
+            menu = menu_bar.addMenu(tr(title))
+            self._menus.append(menu)
+            for label, callback in entries:
+                menu.addAction(tr(label)).triggered.connect(callback)
+        layout.addWidget(menu_bar)
+        viewer.slideshow_button = button('슬라이드쇼 · F5', viewer.start_slideshow, 'play', 'slideshowAction')
+        viewer.slideshow_button.setToolTip(tr('현재 페이지부터 전체 화면으로 발표합니다.'))
+        layout.addWidget(viewer.slideshow_button)
+        viewer.stamp_button = button('직인·서명 넣기', viewer.insert_stamp, 'stamp', 'insertStamp')
+        viewer.stamp_button.setToolTip(tr('JPG·PNG의 흰 배경을 제거하고 위치와 크기를 직접 조절합니다.'))
+        layout.addWidget(viewer.stamp_button)
+        help_bar = QMenuBar(self)
+        self.help_bar = help_bar
+        help_bar.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        help_menu = help_bar.addMenu(tr('도움말'))
+        self._menus.append(help_menu)
+        help_menu.addAction(tr('설정·도움말')).triggered.connect(
+            lambda: viewer.settings_button.showMenu())
+        layout.addWidget(help_bar)
+        viewer.tools_tab_button = button('도구', viewer.show_all_tools, 'tools', 'allTools')
+        viewer.more_features_button = viewer.tools_tab_button
+        viewer.more_features_button.setToolTip(tr('작업별로 찾거나 이름으로 도구를 검색합니다.'))
+        viewer.more_features_menu = action_menu(viewer.more_features_button)
+        layout.addWidget(viewer.tools_tab_button)
+        layout.addStretch(1)
+        viewer.save_button = button('사본 저장', viewer.save_changes, 'save', 'saveCopyAction')
         viewer.save_button.setToolTip(tr('현재 화면의 변경을 새 PDF로 저장합니다. · Ctrl+S'))
         viewer.save_button.setEnabled(False)
+        layout.addWidget(viewer.save_button)
         viewer.close_button = button('닫기', viewer.close, 'close')
-        layout.addWidget(quick)
+        layout.addWidget(viewer.close_button)
+        # Kept as an alias for existing icon and accessibility health checks.
+        viewer.open_button = viewer.home_button
+        self._compact_buttons = [(viewer.home_button, tr('홈')), (viewer.close_button, tr('닫기')),
+                                 (viewer.save_button, tr('사본 저장')), (viewer.tools_tab_button, tr('도구')),
+                                 (viewer.slideshow_button, tr('슬라이드쇼 · F5')),
+                                 (viewer.stamp_button, tr('직인·서명 넣기'))]
 
+        def panel_button(text, callback, icon, name=''):
+            result = button(text, callback, icon, name)
+            row.addWidget(result)
+            return result
         panel = QScrollArea(viewer)
         panel.setObjectName('toolsPanel')
         panel.setWidgetResizable(True)
@@ -149,16 +128,16 @@ class WorkspaceHeader(QWidget):
         heading = QLabel(tr('모든 도구'))
         heading.setObjectName('toolsHeading')
         row.addWidget(heading)
-        viewer.panel_all_tools_button = button('도구 검색', viewer.show_all_tools, 'search')
-        viewer.panel_scan_button = button('스캔·문자 인식', lambda: viewer.show_all_tools('scan'), 'scan')
-        viewer.panel_security_button = button('보안·개인정보', lambda: viewer.show_all_tools('security'), 'security')
-        viewer.panel_export_button = button('복사·내보내기', lambda: viewer.show_all_tools('export'), 'export')
-        viewer.panel_optimize_button = button('압축·복구', lambda: viewer.show_all_tools('optimize'), 'optimize')
-        viewer.undo_button = button('실행 취소', viewer.undo_edit, 'undo')
-        viewer.redo_button = button('다시 실행', viewer.redo_edit, 'redo')
-        viewer.history_button = button('변경 내역', lambda: HistoryDialog(viewer).exec(), 'history')
-        viewer.form_button = button('양식 입력', viewer.edit_form, 'form')
-        viewer.page_tools_button = button('페이지 정리', lambda: None, 'pages')
+        viewer.panel_all_tools_button = panel_button('도구 검색', viewer.show_all_tools, 'search')
+        viewer.panel_scan_button = panel_button('스캔·문자 인식', lambda: viewer.show_all_tools('scan'), 'scan')
+        viewer.panel_security_button = panel_button('보안·개인정보', lambda: viewer.show_all_tools('security'), 'security')
+        viewer.panel_export_button = panel_button('복사·내보내기', lambda: viewer.show_all_tools('export'), 'export')
+        viewer.panel_optimize_button = panel_button('압축·복구', lambda: viewer.show_all_tools('optimize'), 'optimize')
+        viewer.undo_button = panel_button('실행 취소', viewer.undo_edit, 'undo')
+        viewer.redo_button = panel_button('다시 실행', viewer.redo_edit, 'redo')
+        viewer.history_button = panel_button('변경 내역', lambda: HistoryDialog(viewer).exec(), 'history')
+        viewer.form_button = panel_button('양식 입력', viewer.edit_form, 'form')
+        viewer.page_tools_button = panel_button('페이지 정리', lambda: None, 'pages')
         page_menu = action_menu(viewer.page_tools_button)
         for text, callback, icon in (
             ('페이지 삭제', viewer.remove_pages, 'delete'),
@@ -170,7 +149,7 @@ class WorkspaceHeader(QWidget):
         viewer.move_up_button = page_menu.actions()[1]
         viewer.move_down_button = page_menu.actions()[2]
         viewer.page_tools_button.setMenu(page_menu)
-        viewer.view_tools_button = button('복사·보기', lambda: None, 'copy')
+        viewer.view_tools_button = panel_button('복사·보기', lambda: None, 'copy')
         menu = action_menu(viewer.view_tools_button)
         viewer.copy_image_button = menu.addAction(action_icon('image', menu), tr('페이지 이미지 복사'))
         viewer.copy_image_button.triggered.connect(viewer.copy_page_image)
@@ -193,13 +172,9 @@ class WorkspaceHeader(QWidget):
             row.insertWidget(index, item)
         row.addStretch(1)
         viewer.editing_toggle.toggled.connect(panel.setVisible)
-        viewer.editing_toggle.setAccessibleName(tr('편집 도구'))
+        viewer.editing_toggle.setAccessibleName(tr('도구 목록 표시'))
         apply_style(self, '''
             QWidget#workspaceHeader {background:#f7f9fc;}
-            QWidget#readerTabs {background:#f7f9fc; border-bottom:1px solid #dae2f0;}
-            QLabel#documentTab {background:#ffffff; color:#263246; padding:7px 16px; border:1px solid #d0d0d0; border-bottom:0;}
-            QPushButton#readerTabButton {background:#f7f9fc; border-radius:0; padding:7px 12px;}
-            QPushButton#readerTabButton:hover {background:#dbe6ff;}
             QPushButton {background:#f7f9fc; border:0; padding:7px 12px; border-radius:5px;}
             QPushButton:hover {background:#f1f5fb;}
             QPushButton:checked {background:#dbe6ff;}
@@ -216,6 +191,15 @@ class WorkspaceHeader(QWidget):
             shortcut = QShortcut(QKeySequence(key), viewer)
             shortcut.activated.connect(callback)
         self.refresh_history()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        for button, label in self._compact_buttons:
+            button.setText(label)
+        for button, label in self._compact_buttons:
+            if self.layout().sizeHint().width() <= self.width():
+                break
+            button.setText('')
 
     def refresh_history(self):
         viewer = self.viewer

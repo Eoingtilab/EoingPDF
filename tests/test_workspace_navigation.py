@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 
 import pymupdf as pdf
+from PySide6.QtCore import QPoint
 from PySide6.QtWidgets import QApplication
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
@@ -73,3 +74,38 @@ def test_home_respects_unsaved_changes(tmp_path, monkeypatch):
     assert viewer.isVisible()
     monkeypatch.setattr(viewer, 'confirm_leave', lambda: True)
     viewer.close()
+
+
+def test_header_is_one_row_and_tools_are_not_duplicated(tmp_path, monkeypatch):
+    path = Path(tmp_path) / 'document.pdf'
+    with pdf.open() as document:
+        document.new_page()
+        document.save(path)
+    calls = []
+    monkeypatch.setattr(PdfViewer, 'show_all_tools', lambda self, category='all': calls.append(category))
+    monkeypatch.setattr('eoingpdf.sniffer_ui.MicroSniffer.start', lambda *args, **kwargs: None)
+    viewer = PdfViewer(path)
+    try:
+        for width in (960, 680):
+            viewer.resize(width, 600)
+            viewer.show()
+            QApplication.processEvents()
+            controls = (viewer.home_button, viewer.workspace_header.menu_bar,
+                        viewer.slideshow_button, viewer.stamp_button,
+                        viewer.workspace_header.help_bar, viewer.tools_tab_button,
+                        viewer.save_button, viewer.close_button)
+            centers = [item.mapTo(viewer, item.rect().center()) for item in controls]
+            assert max(point.y() for point in centers) - min(point.y() for point in centers) <= 2
+            assert all(left.x() < right.x() for left, right in zip(centers, centers[1:]))
+            assert all(viewer.rect().contains(item.mapTo(viewer, QPoint(item.width() - 1, item.height() - 1)))
+                       for item in controls)
+        assert viewer.more_features_button is viewer.tools_tab_button
+        viewer.tools_tab_button.click()
+        assert len(calls) == 1
+        view_menu = viewer.workspace_header._menus[2]
+        view_menu.actions()[1].trigger()
+        assert not viewer.workspace_header.editing_panel.isVisible()
+        view_menu.actions()[1].trigger()
+        assert viewer.workspace_header.editing_panel.isVisible()
+    finally:
+        viewer.close()
