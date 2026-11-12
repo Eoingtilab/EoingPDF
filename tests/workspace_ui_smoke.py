@@ -58,11 +58,11 @@ def main():
                 viewer = PdfViewer(source)
                 viewer.show()
                 assert viewer.undo_button.isVisible()
-                assert not viewer.thumbnails.isVisible()
-                viewer.sidebar_toggle.click()
                 assert viewer.thumbnails.isVisible()
                 viewer.sidebar_toggle.click()
                 assert not viewer.thumbnails.isVisible()
+                viewer.sidebar_toggle.click()
+                assert viewer.thumbnails.isVisible()
                 QTest.qWait(180)
                 assert viewer.canvas.pixmap() is not None and not viewer.canvas.pixmap().isNull()
                 viewer.grab().save(str(folder / f'workspace-collapsed-{locale}-{mode}.png'))
@@ -76,11 +76,15 @@ def main():
                     assert viewer.size().width() == width
                     assert viewer.scroll.height() > 120
                     for widget in (viewer.open_button, viewer.slideshow_button, viewer.stamp_button,
-                                   viewer.panel_all_tools_button, viewer.save_button, viewer.close_button,
-                                   viewer.undo_button, viewer.redo_button, viewer.history_button,
-                                   viewer.form_button, viewer.page_tools_button, viewer.view_tools_button,
-                                   viewer.page, viewer.zoom, viewer.print_button):
+                                   viewer.save_button, viewer.close_button, viewer.page, viewer.zoom, viewer.print_button):
                         contained(widget, viewer)
+                    for widget in (viewer.panel_all_tools_button, viewer.undo_button, viewer.redo_button,
+                                   viewer.history_button, viewer.form_button, viewer.page_tools_button,
+                                   viewer.view_tools_button):
+                        viewer.workspace_header.editing_panel.ensureWidgetVisible(widget)
+                        QTest.qWait(10)
+                        contained(widget, viewer)
+                    viewer.workspace_header.editing_panel.verticalScrollBar().setValue(0)
                     viewer.grab().save(str(folder / f'workspace-{locale}-{mode}-{width}.png'))
                 viewer.move_current_page(1)
                 assert viewer.undo_button.isEnabled()

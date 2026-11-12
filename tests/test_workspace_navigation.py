@@ -45,14 +45,17 @@ def test_workspace_panels_and_navigation_keep_current_document(tmp_path, monkeyp
     QApplication.processEvents()
     try:
         viewer.page.setValue(2)
+        assert viewer.thumbnails.isVisible()
         viewer.editing_toggle.click()
         assert not viewer.workspace_header.editing_panel.isVisible()
         viewer.thumbnail_rail_button.click()
-        assert viewer.thumbnails.isVisible()
+        assert not viewer.thumbnails.isVisible()
         viewer.editing_toggle.click()
         assert viewer.workspace_header.editing_panel.isVisible()
         assert viewer.page.value() == 2
         viewer.thumbnail_rail_button.click()
+        assert viewer.thumbnails.isVisible()
+        viewer.close_thumbnails_button.click()
         assert not viewer.thumbnails.isVisible()
         viewer.toggle_sidebar_mode()
         assert viewer.thumbnails.isVisible() and viewer.sidebar_toggle.isChecked()
@@ -104,7 +107,7 @@ def test_header_is_one_row_and_tools_are_not_duplicated(tmp_path, monkeypatch):
         viewer.panel_all_tools_button.click()
         assert len(calls) == 1
         view_menu = viewer.workspace_header._menus[2]
-        view_menu.actions()[1].trigger()
+        viewer.close_tools_button.click()
         assert not viewer.workspace_header.editing_panel.isVisible()
         view_menu.actions()[1].trigger()
         assert viewer.workspace_header.editing_panel.isVisible()

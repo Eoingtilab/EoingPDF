@@ -122,6 +122,10 @@ def main():
         for button in window.findChildren(QPushButton):
             if not button.isVisibleTo(window) or button.text() in ('▲', '▼') or button.objectName() in ('thumbnailPage', 'deleteThumbnail'):
                 continue
+            panel = getattr(getattr(window, 'workspace_header', None), 'editing_panel', None)
+            if panel is not None and panel.isAncestorOf(button):
+                panel.ensureWidgetVisible(button)
+                app.processEvents()
             assert button.property('actionIcon'), ('Missing line action icon', type(window).__name__, button.text(), button.objectName())
             assert button.iconSize() == QSize(16, 16), button.text()
             contained(button, window)
@@ -130,6 +134,8 @@ def main():
             report['icon_checks'].append({'window': type(window).__name__, 'text': button.text(),
                                           'icon': button.property('actionIcon'), 'normal': normal, 'disabled': disabled})
             found.append(button.property('actionIcon'))
+        if getattr(getattr(window, 'workspace_header', None), 'editing_panel', None) is not None:
+            window.workspace_header.editing_panel.verticalScrollBar().setValue(0)
         return found
 
     def neutral_workspace(viewer):

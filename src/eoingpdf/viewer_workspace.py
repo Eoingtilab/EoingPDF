@@ -52,7 +52,7 @@ class WorkspaceHeader(QWidget):
         # the visible controls are the thumbnail rail and the View menu.
         viewer.sidebar_toggle = QPushButton(self)
         viewer.sidebar_toggle.setCheckable(True)
-        viewer.sidebar_toggle.toggled.connect(lambda visible: viewer.thumbnails.setVisible(visible))
+        viewer.sidebar_toggle.toggled.connect(lambda visible: viewer.thumbnail_container.setVisible(visible))
         viewer.sidebar_toggle.hide()
         viewer.editing_toggle = QPushButton(self)
         viewer.editing_toggle.setCheckable(True)
@@ -113,9 +113,18 @@ class WorkspaceHeader(QWidget):
         row = QVBoxLayout(editing)
         row.setContentsMargins(10, 8, 10, 8)
         row.setSpacing(2)
+        heading_row = QHBoxLayout()
         heading = QLabel(tr('모든 도구'))
         heading.setObjectName('toolsHeading')
-        row.addWidget(heading)
+        heading_row.addWidget(heading, 1)
+        viewer.close_tools_button = button('닫기', lambda: viewer.editing_toggle.setChecked(False), 'close')
+        viewer.close_tools_button.setText('')
+        viewer.close_tools_button.setFixedSize(30, 30)
+        apply_style(viewer.close_tools_button, 'QPushButton {padding:0;}')
+        viewer.close_tools_button.setToolTip(tr('도구 목록 닫기'))
+        viewer.close_tools_button.setAccessibleName(tr('도구 목록 닫기'))
+        heading_row.addWidget(viewer.close_tools_button)
+        row.addLayout(heading_row)
         viewer.panel_all_tools_button = panel_button('도구 검색', viewer.show_all_tools, 'search')
         viewer.panel_scan_button = panel_button('스캔·문자 인식', lambda: viewer.show_all_tools('scan'), 'scan')
         viewer.panel_security_button = panel_button('보안·개인정보', lambda: viewer.show_all_tools('security'), 'security')
@@ -150,14 +159,23 @@ class WorkspaceHeader(QWidget):
         viewer.recommended_name_action.setVisible(False)
         viewer.recommended_name_action.triggered.connect(lambda: viewer.diagnostic_action('rename'))
         viewer.view_tools_button.setMenu(menu)
-        for index, item in enumerate((viewer.panel_all_tools_button, viewer.form_button,
-                                      viewer.page_tools_button, viewer.panel_scan_button,
-                                      viewer.panel_security_button, viewer.panel_export_button,
-                                      viewer.panel_optimize_button, viewer.view_tools_button,
-                                      viewer.undo_button, viewer.redo_button,
-                                      viewer.history_button), start=1):
+        items = ((viewer.panel_all_tools_button, '도구를 이름이나 작업별로 찾습니다.'),
+                 (viewer.form_button, '문서의 입력 칸을 작성합니다.'),
+                 (viewer.page_tools_button, '페이지를 삭제하거나 순서를 바꿉니다.'),
+                 (viewer.panel_scan_button, '스캔 문서와 텍스트 인식을 처리합니다.'),
+                 (viewer.panel_security_button, '암호와 개인정보를 관리합니다.'),
+                 (viewer.panel_export_button, '문서를 다른 형식으로 내보냅니다.'),
+                 (viewer.panel_optimize_button, '파일을 압축하거나 복구합니다.'),
+                 (viewer.view_tools_button, ''), (viewer.undo_button, ''),
+                 (viewer.redo_button, ''), (viewer.history_button, ''))
+        for item, description in items:
             row.removeWidget(item)
-            row.insertWidget(index, item)
+            row.addWidget(item)
+            if description:
+                detail = QLabel(tr(description))
+                detail.setObjectName('toolDescription')
+                detail.setWordWrap(True)
+                row.addWidget(detail)
         row.addStretch(1)
         viewer.editing_toggle.toggled.connect(panel.setVisible)
         viewer.editing_toggle.setAccessibleName(tr('도구 목록 표시'))
@@ -170,6 +188,7 @@ class WorkspaceHeader(QWidget):
         apply_style(editing, '''
             QWidget#editingActions {background:white;}
             QLabel#toolsHeading {color:#263246; font-weight:600; padding:5px;}
+            QLabel#toolDescription {color:#657187; padding:0px 6px 6px 30px; font-size:12px;}
             QPushButton {text-align:left; background:white; min-height:0; padding:6px 7px; border:0; border-radius:5px;}
             QPushButton:hover {background:#f1f5fb;}
         ''')
