@@ -2,8 +2,10 @@ import sys
 from pathlib import Path
 
 import pymupdf as pdf
-from PySide6.QtCore import QPoint
-from PySide6.QtWidgets import QApplication, QPushButton
+import pytest
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QPushButton, QWidget
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from eoingpdf.viewer import PdfViewer
@@ -103,7 +105,8 @@ def test_header_is_one_row_and_tools_are_not_duplicated(tmp_path, monkeypatch):
             assert all(viewer.rect().contains(item.mapTo(viewer, QPoint(item.width() - 1, item.height() - 1)))
                        for item in controls)
         assert not viewer.workspace_header.findChildren(QPushButton, 'allTools')
-        assert [menu.title() for menu in viewer.workspace_header._menus] == [tr(x) for x in ('파일', '편집', '보기', '창')]
+        assert [menu.title() for menu in viewer.workspace_header._menus] == [
+            f'{tr(title)}(&{key})' for title, key in zip(('파일', '편집', '보기', '창'), 'FEVW')]
         viewer.panel_all_tools_button.click()
         assert len(calls) == 1
         view_menu = viewer.workspace_header._menus[2]
@@ -113,3 +116,32 @@ def test_header_is_one_row_and_tools_are_not_duplicated(tmp_path, monkeypatch):
         assert viewer.workspace_header.editing_panel.isVisible()
     finally:
         viewer.close()
+
+
+@pytest.mark.parametrize('locale', ['ko-KR', 'en-US', 'ja-JP'])
+def test_alt_mnemonics_open_the_correct_menus(tmp_path, monkeypatch, locale):
+    from eoingpdf.localization import install_language
+    app = QApplication.instance()
+    previous = getattr(app, 'eoing_locale', 'ko-KR')
+    install_language(app, locale)
+    path = Path(tmp_path) / 'document.pdf'
+    with pdf.open() as document:
+        document.new_page()
+        document.save(path)
+    monkeypatch.setattr('eoingpdf.sniffer_ui.MicroSniffer.start', lambda *args, **kwargs: None)
+    monkeypatch.setattr('eoingpdf.capture_ui.CaptureChip', QWidget)
+    viewer = PdfViewer(path)
+    viewer.show()
+    viewer.activateWindow()
+    QTest.qWait(50)
+    try:
+        for key, menu in zip((Qt.Key_F, Qt.Key_E, Qt.Key_V, Qt.Key_W), viewer.workspace_header._menus):
+            QTest.keyClick(viewer, key, Qt.AltModifier)
+            QTest.qWait(30)
+            assert menu.isVisible(), menu.title()
+            menu.close()
+            viewer.activateWindow()
+            QTest.qWait(10)
+    finally:
+        viewer.close()
+        install_language(app, previous)

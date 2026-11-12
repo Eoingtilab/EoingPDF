@@ -1,4 +1,4 @@
-# 어잉PDF 2.4.12
+# 어잉PDF 2.4.13
 
 **직인·양식·발표를 PDF 한 화면에서 처리하는 Windows 실무 유틸리티**
 
@@ -10,9 +10,9 @@
 
 무료로 사용할 수 있으며 라이선스 키나 활성화가 필요하지 않습니다. Office·한글 변환은 해당 프로그램이나 지원되는 변환 환경이 필요합니다.
 
-[Windows 설치파일 다운로드](https://github.com/Eoingtilab/nalapps-releases/releases/download/utility-eoingpdf-v2.4.12/EoingPDF-2.4.12-Setup-x64.exe) · [단일 실행 포터블](https://github.com/Eoingtilab/nalapps-releases/releases/download/utility-eoingpdf-v2.4.12/EoingPDF-2.4.12-portable.exe) · [2.4.12 배포 릴리스](https://github.com/Eoingtilab/nalapps-releases/releases/tag/utility-eoingpdf-v2.4.12) · [변경 이력](CHANGELOG.md)
+[Windows 설치파일 다운로드](https://github.com/Eoingtilab/nalapps-releases/releases/download/utility-eoingpdf-v2.4.13/EoingPDF-2.4.13-Setup-x64.exe) · [단일 실행 포터블](https://github.com/Eoingtilab/nalapps-releases/releases/download/utility-eoingpdf-v2.4.13/EoingPDF-2.4.13-portable.exe) · [2.4.13 배포 릴리스](https://github.com/Eoingtilab/nalapps-releases/releases/tag/utility-eoingpdf-v2.4.13) · [변경 이력](CHANGELOG.md)
 
-2.4.12는 라이선스 키나 활성화 없이 바로 사용할 수 있습니다. 기존 라이선스 데이터는 보존합니다. [변경 내용](docs/RELEASE_NOTES_2.4.12.md) · [배포 검증 기록](https://github.com/Eoingtilab/nalapps-releases/blob/main/products/eoingpdf/2.4.12/validation.json)
+2.4.13은 상단 메뉴의 Alt 접근키와 설치 후 Windows 기본 PDF 앱 설정 안내를 제공합니다. 라이선스 활성화 없이 사용할 수 있습니다. [변경 내용](docs/RELEASE_NOTES_2.4.13.md) · [배포 검증 기록](https://github.com/Eoingtilab/nalapps-releases/blob/main/products/eoingpdf/2.4.13/validation.json)
 
 ## 어떤 점이 차별화되는가
 
@@ -117,11 +117,11 @@
 
 키 입력이나 활성화 없이 설치 후 바로 사용할 수 있습니다. 문서 처리는 로컬에서 이루어지며 업데이트 확인에는 인터넷이 필요합니다.
 
-설치형은 `EoingPDF-2.4.12-Setup-x64.exe`를 실행합니다. 현재 사용자 폴더에 설치되며 시작 메뉴와 우클릭 메뉴, PDF 문서 아이콘을 등록합니다.
-설치 마지막 화면에서 기본 PDF 앱 설정을 열 수 있습니다. 제거는 Windows 설정의 설치된 앱에서 **어잉PDF**를 선택합니다.
+설치형은 `EoingPDF-2.4.13-Setup-x64.exe`를 실행합니다. 현재 사용자 폴더에 설치되며 시작 메뉴와 우클릭 메뉴, PDF 문서 아이콘을 등록합니다.
+설치 마지막 화면에서 기본 선택된 항목으로 Windows 기본 앱 설정을 열고 `.pdf`에 어잉PDF를 직접 선택할 수 있습니다. 자동·무인 업데이트는 설정 화면을 열지 않습니다. 제거는 Windows 설정의 설치된 앱에서 **어잉PDF**를 선택합니다.
 아래는 포터블 사용 방법입니다.
 
-1. 포터블 폴더 배포판을 사용할 경우 `release/EoingPDF-2.4.12-portable.zip`을 원하는 위치에 풉니다. 단일 실행 파일은 `EoingPDF-2.4.12-portable.exe`입니다.
+1. 포터블 폴더 배포판을 사용할 경우 `release/EoingPDF-2.4.13-portable.zip`을 원하는 위치에 풉니다. 단일 실행 파일은 `EoingPDF-2.4.13-portable.exe`입니다.
 2. 폴더 안의 `install-context-menu.cmd`를 한 번 실행합니다. 관리자 권한은 필요하지 않습니다.
    Windows 기본 앱 설정이 열리면 `.pdf`에 **어잉PDF**를 선택합니다. 이후 PDF를 더블클릭하면 뷰어가 열립니다.
 3. 탐색기에서 파일을 선택하고 우클릭합니다. Windows 11에서는 **더 많은 옵션 표시**를 누릅니다.

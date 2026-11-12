@@ -63,15 +63,15 @@ class WorkspaceHeader(QWidget):
         self.menu_bar = menu_bar
         self._menus = []
         menu_bar.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        for title, entries in (
-            ('파일', (('PDF 열기', viewer.choose_pdf), ('사본 저장', viewer.save_changes), ('닫기', viewer.close))),
-            ('편집', (('실행 취소', viewer.undo_edit), ('다시 실행', viewer.redo_edit),
+        for title, mnemonic, entries in (
+            ('파일', 'F', (('PDF 열기', viewer.choose_pdf), ('사본 저장', viewer.save_changes), ('닫기', viewer.close))),
+            ('편집', 'E', (('실행 취소', viewer.undo_edit), ('다시 실행', viewer.redo_edit),
                     ('변경 내역', lambda: HistoryDialog(viewer).exec()))),
-            ('보기', (('페이지 목록', lambda: viewer.sidebar_toggle.toggle()),
+            ('보기', 'V', (('페이지 목록', lambda: viewer.sidebar_toggle.toggle()),
                     ('도구 목록 표시', lambda: viewer.editing_toggle.toggle()))),
-            ('창', (('슬라이드쇼 · F5', viewer.start_slideshow),)),
+            ('창', 'W', (('슬라이드쇼 · F5', viewer.start_slideshow),)),
         ):
-            menu = menu_bar.addMenu(tr(title))
+            menu = menu_bar.addMenu(f'{tr(title)}(&{mnemonic})')
             self._menus.append(menu)
             for label, callback in entries:
                 menu.addAction(tr(label)).triggered.connect(callback)

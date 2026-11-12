@@ -38,7 +38,7 @@ Name: "{group}\어잉PDF"; Filename: "{app}\EoingPDF.exe"
 Name: "{autodesktop}\어잉PDF"; Filename: "{app}\EoingPDF.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "ms-settings:defaultapps?registeredAppUser=EoingPDF"; Description: "기본 PDF 앱 설정 열기"; Flags: shellexec postinstall skipifsilent unchecked; Check: ShellRegistrationSucceeded
+Filename: "ms-settings:defaultapps?registeredAppUser=EoingPDF"; Description: "Windows 기본 앱 설정 열기 (.pdf에 어잉PDF 선택)"; Flags: shellexec postinstall skipifsilent; Check: ShellRegistrationSucceeded and (not IsAutoUpdate)
 Filename: "{app}\EoingPDF.exe"; Description: "어잉PDF 실행"; Flags: nowait postinstall skipifsilent; Check: ShellRegistrationSucceeded
 Filename: "{app}\EoingPDF.exe"; Flags: nowait; Check: IsAutoUpdate and (not IsHelperManaged) and ShellRegistrationSucceeded
 
