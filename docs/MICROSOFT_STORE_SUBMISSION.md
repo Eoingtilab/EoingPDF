@@ -37,3 +37,19 @@
 5. 기존 제품에 제출한 후 접수 상태와 인증 결과를 구별한다. 심사 전 공개되었다고 안내하지 않는다.
 
 기존 2.4.3/2.4.4 라이선스 인증과 HTTPS 수정 이력은 [당시 검증 기록](STORE_HTTPS_FIX_20261030.md)에 보존되어 있다. 현재 버전은 라이선스 인증이나 심사용 키가 필요하지 않다.
+
+## Store 게시 후 날라앱스 설치 버튼
+
+제품 `9PDKHM1SCBZ9`가 실제로 인증을 통과하여 게시되고 공개 설치가 정상 동작하는 것을 확인한 후, 날라앱스 상품의 기본 다운로드 동선을 Microsoft Store Web Installer로 전환한다. 게시 전에는 설치 가능한 버튼을 노출하지 않는다.
+
+Microsoft 배지 생성기에서 제품 ID `9PDKHM1SCBZ9`, 한국어, 어두운 배경, 시작 모드 `Direct`로 생성한 정적 배지 코드:
+
+```html
+<a href="https://get.microsoft.com/installer/download/9PDKHM1SCBZ9?referrer=appbadge" target="_self" >
+	<img src="https://get.microsoft.com/images/ko%20dark.svg" width="200"/>
+</a>
+```
+
+Microsoft의 웹 설치 프로그램이 Store에서 앱을 가져온다. 실제 지원 여부, 파일 서명, Windows 경고, 신규 설치와 Store 업데이트는 **게시 후 별도 검증**하며, 심사 중에는 성공했다고 표시하지 않는다. 공식 안내: https://learn.microsoft.com/en-us/windows/apps/distribute-through-store/how-to-use-store-web-installer-for-distribution
+
+전환 시 상품 본문의 EXE 직접 링크와 키 발급·가입 안내를 정리하고 Microsoft Store 제품 페이지로 연결되는 대체 경로를 함께 제공한다. EDD 공통 카드와 라이선스 생성 설정은 다른 상품·기존 구매자·구버전 활성화에 영향을 줄 수 있으므로 별도 확인 후 어잉PDF에만 적용한다. 기존 릴리스 자산, 과거 라이선스 데이터와 기존 업데이트 매니페스트는 보존한다.
