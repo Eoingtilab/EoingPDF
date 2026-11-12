@@ -10,7 +10,9 @@
 
 무료로 사용할 수 있으며 라이선스 키나 활성화가 필요하지 않습니다. Office·한글 변환은 해당 프로그램이나 지원되는 변환 환경이 필요합니다.
 
-[Windows 설치파일 다운로드](https://github.com/Eoingtilab/nalapps-releases/releases/download/utility-eoingpdf-v2.4.13/EoingPDF-2.4.13-Setup-x64.exe) · [단일 실행 포터블](https://github.com/Eoingtilab/nalapps-releases/releases/download/utility-eoingpdf-v2.4.13/EoingPDF-2.4.13-portable.exe) · [2.4.13 배포 릴리스](https://github.com/Eoingtilab/nalapps-releases/releases/tag/utility-eoingpdf-v2.4.13) · [변경 이력](CHANGELOG.md)
+[NallaApps 공식 다운로드](https://app.nal.la/downloads/%EC%96%B4%EC%9E%89pdf/) · [공식 배포처 및 라이선스 안내](docs/OFFICIAL_DISTRIBUTION.md) · [변경 이력](CHANGELOG.md)
+
+Microsoft Store는 기존 제품의 심사·게시가 완료된 후 공식 다운로드 채널로 안내합니다. 다른 사이트의 설치 파일은 공식적으로 관리하거나 검증한 배포본이 아닐 수 있습니다. 이는 AGPL-3.0에 따른 적법한 제3자 재배포 권한을 제한하지 않습니다.
 
 2.4.13은 상단 메뉴의 Alt 접근키와 설치 후 Windows 기본 PDF 앱 설정 안내를 제공합니다. 라이선스 활성화 없이 사용할 수 있습니다. [변경 내용](docs/RELEASE_NOTES_2.4.13.md) · [배포 검증 기록](https://github.com/Eoingtilab/nalapps-releases/blob/main/products/eoingpdf/2.4.13/validation.json)
 
