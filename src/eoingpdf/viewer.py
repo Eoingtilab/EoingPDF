@@ -235,13 +235,17 @@ class PdfViewer(QDialog):
         footer = QHBoxLayout()
         self.status.setWordWrap(True)
         footer.addWidget(self.status, 1)
-        from .license_ui import settings
+        from .settings_ui import SettingsDialog
+        from .product_policy import LICENSE_REQUIRED
         from .updates import show_update_status
         self.settings_button = QPushButton(tr('설정·도움말'))
         set_action_icon(self.settings_button, 'settings')
         self.settings_button.setAutoDefault(False)
         settings_menu = action_menu(self.settings_button)
-        settings_menu.addAction(action_icon('license', settings_menu), tr('라이선스')).triggered.connect(lambda: settings(self))
+        settings_menu.addAction(action_icon('settings', settings_menu), tr('설정')).triggered.connect(lambda: SettingsDialog(self).exec())
+        if LICENSE_REQUIRED:
+            from .license_ui import settings
+            settings_menu.addAction(action_icon('license', settings_menu), tr('라이선스')).triggered.connect(lambda: settings(self))
         settings_menu.addAction(action_icon('update', settings_menu), tr('업데이트')).triggered.connect(lambda: show_update_status(self))
         self.settings_button.setMenu(settings_menu)
         footer.addWidget(self.settings_button)

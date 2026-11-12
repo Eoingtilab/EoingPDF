@@ -13,13 +13,18 @@ shell = Mock()
 dialog = SettingsDialog(shell_settings=shell)
 dialog.show()
 QTest.qWait(40)
-assert dialog.tabs.count() == 3 and dialog.timer.isActive()
+assert dialog.tabs.count() == 2 and dialog.timer.isActive()
 assert not dialog.check_button.isEnabled()
 dialog.shell.click()
 shell.assert_called_once()
-with patch('eoingpdf.license_ui.settings') as settings:
-    dialog.license_button.click()
-    settings.assert_called_once_with(dialog)
+assert not hasattr(dialog, 'license_button')
+with patch('eoingpdf.product_policy.LICENSE_REQUIRED', True):
+    gated = SettingsDialog()
+    assert gated.tabs.count() == 3
+    with patch('eoingpdf.license_ui.settings') as settings:
+        gated.license_button.click()
+        settings.assert_called_once_with(gated)
+    gated.close()
 updater = Mock(pending=None, running=False, message='테스트 서버 확인 완료')
 app.updater = updater
 dialog.refresh()
@@ -34,7 +39,7 @@ updater.pending = Path('synthetic-update.exe')
 dialog.refresh()
 assert '설정 창을 닫고' in dialog.update_status.text()
 assert not dialog.check_button.isEnabled()
-dialog.tabs.setCurrentIndex(2)
+dialog.tabs.setCurrentIndex(1)
 folder = ROOT / 'temp/settings-ui'
 folder.mkdir(parents=True, exist_ok=True)
 dialog.grab().save(str(folder / 'settings.png'))
@@ -54,4 +59,4 @@ for locale, title, tab in [('en-US', 'EoingPDF · Settings', 'General'),
     translated.grab().save(str(folder / f'{locale}.png'))
     translated.close()
 install_language(app, 'ko-KR')
-print('PASS: shell/license routing, update busy/pending states, no real network/license access, timer shutdown')
+print('PASS: free settings, optional license routing, update states and timer shutdown')

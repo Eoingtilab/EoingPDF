@@ -182,8 +182,8 @@ def validated_download(info):
 
 
 def update_info(current):
-    state = store()
-    if not state.valid_session():
+    from .product_policy import LICENSE_REQUIRED
+    if LICENSE_REQUIRED and not store().valid_session():
         raise LicenseError(tr('활성화된 라이선스가 있어야 업데이트를 확인할 수 있습니다.'))
     data = fetch_release_manifest()
     newest = data.get('version')

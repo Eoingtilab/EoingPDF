@@ -1,6 +1,6 @@
 # 어잉PDF 개인정보처리방침 / EoingPDF Privacy Policy
 
-최종 업데이트: 2026-10-29 / Last updated: 2026-10-29
+최종 업데이트: 2026-11-12 / Last updated: 2026-11-12
 
 운영자: Eoingti Lab Inc. (주식회사 어잉티연구소)
 문의: master@eoingti.com
@@ -12,11 +12,11 @@
 
 EoingPDF processes routine PDF viewing, conversion, merging, page editing, OCR, stamps, forms, and presentation tasks locally on the user's Windows PC. The app does not upload document files or their contents to Eoingti Lab servers for those operations. Files are saved or exported to destinations selected by the user.
 
-## 2. 무료 라이선스 활성화 / License activation
+## 2. 사용 조건 / Access
 
-무료 사용을 위해 최초 앱 사용 시 날라앱스(app.nal.la) 계정을 통한 무료 라이선스 키 발급 및 온라인 활성화가 필요합니다. 활성화·확인·해제 과정에서 라이선스 키, 제품 식별자, 앱이 생성하는 장치 식별자가 라이선스 서버로 전달될 수 있습니다. 장치 식별자는 문서 내용이나 Windows 계정 이름을 포함하지 않도록 생성합니다. 날라앱스 계정 생성 및 사용 중 발생하는 네트워크 요청에는 해당 서비스의 계정·접속 정보 처리가 수반될 수 있습니다.
+현재 배포판은 계정, 라이선스 키 또는 활성화 없이 사용할 수 있습니다. 앱은 사용을 위해 라이선스 서버에 키나 장치 식별자를 전송하지 않습니다. 이전 버전에서 저장된 라이선스 정보는 자동으로 삭제하거나 서버에서 해제하지 않습니다.
 
-A free NallaApps account, free license key, and initial online activation are required. License activation, validation, and deactivation may transmit the license key, product identifier, and an app-generated device identifier to app.nal.la. The identifier is not intended to contain document contents or the Windows account name. Account registration and network access are governed by the relevant NallaApps service policies.
+The current release does not require an account, license key, or activation. It does not send a license key or device identifier to a licensing server to enable use. Existing license data from previous versions is not automatically deleted or deactivated.
 
 ## 3. 업데이트 / Updates
 
@@ -32,7 +32,7 @@ Depending on enabled functions, app preferences, local license state, reusable s
 
 ## 5. 외부 서비스 / Third-party services
 
-- 날라앱스(app.nal.la): 계정·무료 라이선스 발급, 활성화 및 유효성 확인
+- 날라앱스(app.nal.la): 제품 안내 및 배포 사이트
 - GitHub (Eoingtilab/nalapps-releases): Microsoft Store 이외 버전의 릴리스 조회 및 업데이트 파일 제공
 - Microsoft Store: Store 버전 배포, 결제·설치 환경 및 앱 업데이트
 

@@ -116,6 +116,9 @@ class LicenseDialog(QDialog):
 
 
 def ensure_license(parent=None):
+    from .product_policy import LICENSE_REQUIRED
+    if not LICENSE_REQUIRED:
+        return True
     if store().valid_session():
         return True
     dialog = LicenseDialog(parent, required=True)
@@ -127,6 +130,9 @@ def settings(parent=None):
 
 
 def main():
+    from .product_policy import LICENSE_REQUIRED
+    if not LICENSE_REQUIRED:
+        return 0
     import sys
     from .app import STYLE, ROOT
     from .localization import install_language

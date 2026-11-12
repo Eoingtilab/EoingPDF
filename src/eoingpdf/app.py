@@ -178,7 +178,8 @@ class Window(QMainWindow):
         nav.addWidget(button(tr('두 문서 비교'), lambda: show_diff(self)))
         nav.addWidget(button(tr('문서 내용 검색'), self.open_search))
         from .settings_ui import SettingsDialog
-        nav.addWidget(button(tr('설정 · 라이선스 · 업데이트'),
+        from .product_policy import LICENSE_REQUIRED
+        nav.addWidget(button(tr('설정 · 라이선스 · 업데이트' if LICENSE_REQUIRED else '설정 · 업데이트'),
                              lambda: SettingsDialog(self, self.menu_settings).exec()))
         nav.addWidget(button(tr('사용 안내'), self.help))
         nav.addSpacing(16)

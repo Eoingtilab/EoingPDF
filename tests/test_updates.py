@@ -73,13 +73,17 @@ class UpdateTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 version_tuple(bad)
 
-    def test_active_license_is_required_but_version_comes_from_release_repo(self):
+    def test_update_access_follows_license_policy(self):
         state = Mock()
         state.valid_session.return_value = False
-        with patch('eoingpdf.updates.store', return_value=state),                 patch('eoingpdf.updates.fetch_release_manifest') as manifest:
+        with patch('eoingpdf.product_policy.LICENSE_REQUIRED', True), patch('eoingpdf.updates.store', return_value=state), patch('eoingpdf.updates.fetch_release_manifest') as manifest:
             with self.assertRaises(LicenseError):
                 update_info('2.2.0')
             manifest.assert_not_called()
+
+        with patch('eoingpdf.product_policy.LICENSE_REQUIRED', False), patch('eoingpdf.updates.store') as store, patch('eoingpdf.updates.fetch_release_manifest', return_value=self.release()):
+            self.assertEqual(update_info('2.2.0')['version'], '2.3.0')
+            store.assert_not_called()
 
         installed = self.info(self.release())
         self.assertEqual(installed['version'], '2.3.0')
