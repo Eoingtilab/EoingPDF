@@ -153,7 +153,12 @@ def run(packet):
         restored = install / 'EoingPDF.exe'
         write_status(report, state)
         if packet.get('restart', True):
-            subprocess.Popen([str(restored)] + (['--skip-update-once'] if state == 'restored' else []),
+            args = []
+            if state == 'updated' and packet.get('version'):
+                args.extend(['--updated-to', str(packet['version'])])
+            if state in ('updated', 'restored'):
+                args.append('--skip-update-once')
+            subprocess.Popen([str(restored)] + args,
                              cwd=install, creationflags=subprocess.CREATE_NO_WINDOW)
         return 0
     except Exception as error:
@@ -176,13 +181,13 @@ def child_main():
         return 2
 
 
-def launch(backup, install=None, installer=None, digest=None, version=None):
+def launch(backup, install=None, installer=None, digest=None, version=None, restart=True):
     if not getattr(sys, 'frozen', False):
         raise ValueError(tr('설치형 또는 포터블 실행본에서 복원할 수 있습니다.'))
     from .distribution import is_onefile
     if is_onefile():
         from .portable_update import launch as launch_portable
-        return launch_portable(backup, installer, digest, version)
+        return launch_portable(backup, installer, digest, version, restart=restart)
     install = Path(install or Path(sys.executable).parent).resolve()
     backup = Path(backup).resolve()
     validate(backup, install)
@@ -193,7 +198,7 @@ def launch(backup, install=None, installer=None, digest=None, version=None):
     job = Path(tempfile.mkdtemp(prefix='restore-', dir=jobs))
     report = job / 'status.json'
     packet = dict(backup=str(backup), install=str(install), report=str(report), pid=os.getpid(),
-                  restart=True, locale=current_locale())
+                  restart=bool(restart), locale=current_locale())
     if installer is not None:
         from .updates import verify_installer
         verify_installer(installer, digest)

@@ -180,7 +180,12 @@ def run(packet):
         state = apply(packet)
         write_status(report, state)
         if packet.get('restart', True):
-            subprocess.Popen([str(executable), '--skip-update-once'], cwd=executable.parent,
+            args = []
+            if state == 'updated' and packet.get('version'):
+                args.extend(['--updated-to', str(packet['version'])])
+            if state in ('updated', 'restored'):
+                args.append('--skip-update-once')
+            subprocess.Popen([str(executable)] + args, cwd=executable.parent,
                 creationflags=subprocess.CREATE_NO_WINDOW,
                 env={**os.environ, 'PYINSTALLER_RESET_ENVIRONMENT': '1'})
         return 0
@@ -192,7 +197,7 @@ def run(packet):
             kernel.CloseHandle(handle)
 
 
-def launch(backup, installer=None, expected=None, version=None):
+def launch(backup, installer=None, expected=None, version=None, restart=True):
     from .update_helper import read_status
     from .updates import verify_installer
     executable, backup = safe_path(sys.executable), safe_path(backup)
@@ -203,7 +208,7 @@ def launch(backup, installer=None, expected=None, version=None):
     report = job / 'status.json'
     packet = dict(kind='onefile', backup=str(backup), executable=str(executable),
                   current_digest=digest(executable), pid=os.getpid(), report=str(report),
-                  restart=True, locale=current_locale())
+                  restart=bool(restart), locale=current_locale())
     if installer is not None:
         verify_installer(installer, expected)
         packet.update(installer=str(safe_path(installer)), digest=expected, version=version)

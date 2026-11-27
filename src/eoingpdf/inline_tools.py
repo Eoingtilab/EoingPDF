@@ -44,6 +44,7 @@ class InlineToolRunner(QWidget):
         header = QHBoxLayout()
         back_btn = QPushButton(tr('← 목록'))
         back_btn.setAutoDefault(False)
+        set_action_icon(back_btn, 'previous')
         back_btn.clicked.connect(self._go_back)
         header.addWidget(back_btn)
         self.title = QLabel()
@@ -95,6 +96,7 @@ class InlineToolRunner(QWidget):
         self.image_path = QLineEdit()
         self.image_path.setReadOnly(True)
         self.image_btn = QPushButton(tr('파일 선택'))
+        set_action_icon(self.image_btn, 'open')
         self.image_btn.clicked.connect(self._pick_image)
         self.image_box = QWidget()
         img_l = QHBoxLayout(self.image_box)
@@ -139,6 +141,12 @@ class InlineToolRunner(QWidget):
         self.user_pw.setEchoMode(QLineEdit.Password)
         self.owner_pw = QLineEdit()
         self.owner_pw.setEchoMode(QLineEdit.Password)
+        self.decrypt_pw = QLineEdit()
+        self.decrypt_pw.setEchoMode(QLineEdit.Password)
+        self.decrypt_pw.setPlaceholderText(tr('비우면 현재 열람 암호 사용'))
+        self.overlay_pw = QLineEdit()
+        self.overlay_pw.setEchoMode(QLineEdit.Password)
+        self.overlay_pw.setPlaceholderText(tr('암호가 있는 배경 PDF일 때만 입력'))
         self.allow_print = QCheckBox(tr('인쇄 허용'))
         self.allow_print.setChecked(True)
         self.allow_copy = QCheckBox(tr('복사 허용'))
@@ -152,6 +160,7 @@ class InlineToolRunner(QWidget):
         self.bates_digits = QSpinBox()
         self.bates_digits.setRange(1, 10)
         self.bates_digits.setValue(6)
+        self.bates_hide_old = QCheckBox(tr('기존 번호 가리기'))
 
         self.toc_text = QPlainTextEdit()
         self.toc_text.setMaximumHeight(84)
@@ -178,11 +187,12 @@ class InlineToolRunner(QWidget):
             ('wm_opacity', tr('불투명도'), self.watermark_opacity, {'watermark_text', 'watermark_png'}),
             ('img_path', tr('선택 파일'), self.image_box, {'watermark_png', 'overlay_pdf', 'attachments'}),
             ('overlay_fg', '', self.overlay_fg, {'overlay_pdf'}),
+            ('overlay_pw', tr('배경 PDF 암호'), self.overlay_pw, {'overlay_pdf'}),
             ('qr_text', tr('QR 내용'), self.qr_text, {'qr_stamp'}),
             ('stamp_x', tr('가로 위치(mm)'), self.stamp_x, {'qr_stamp'}),
             ('stamp_y', tr('세로 위치(mm)'), self.stamp_y, {'qr_stamp'}),
             ('stamp_w', tr('QR 너비(mm)'), self.stamp_w, {'qr_stamp'}),
-            ('custom_terms', tr('추가 가릴 단어'), self.custom_terms, {'redact'}),
+            ('custom_terms', tr('추가 가릴 단어'), self.custom_terms, {'redact', 'ocr_redact'}),
             ('split_ranges', tr('분할 범위'), self.split_ranges, {'split_ranges'}),
             ('group_size', tr('묶음 페이지 수'), self.group_size, {'split_groups'}),
             ('max_mb', tr('파일당 최대 용량'), self.max_mb, {'split_size'}),
@@ -190,6 +200,7 @@ class InlineToolRunner(QWidget):
             ('insert_count', tr('추가 장수'), self.insert_count, {'insert_blank'}),
             ('user_pw', tr('열기 암호'), self.user_pw, {'encrypt', 'permissions'}),
             ('owner_pw', tr('소유자 암호'), self.owner_pw, {'encrypt', 'permissions'}),
+            ('decrypt_pw', tr('해제할 암호'), self.decrypt_pw, {'decrypt'}),
             ('allow_print', '', self.allow_print, {'encrypt', 'permissions'}),
             ('allow_copy', '', self.allow_copy, {'encrypt', 'permissions'}),
             ('allow_edit', '', self.allow_edit, {'permissions'}),
@@ -197,6 +208,7 @@ class InlineToolRunner(QWidget):
             ('bates_prefix', tr('접두어'), self.bates_prefix, {'bates'}),
             ('bates_start', tr('시작 번호'), self.bates_start, {'bates'}),
             ('bates_digits', tr('자리 수'), self.bates_digits, {'bates'}),
+            ('bates_hide_old', '', self.bates_hide_old, {'bates'}),
             ('auto_toc', '', self.auto_toc_check, {'bookmarks'}),
             ('toc_text', tr('목차 내용'), self.toc_text, {'bookmarks'}),
             ('attach_mode', tr('첨부 작업'), self.attach_mode, {'attachments'}),
@@ -220,6 +232,7 @@ class InlineToolRunner(QWidget):
         btn_row = QHBoxLayout()
         self.apply_btn = QPushButton(tr('현재 PDF에 적용'))
         self.apply_btn.setObjectName('primary')
+        set_action_icon(self.apply_btn, 'play')
         self.apply_btn.clicked.connect(lambda: self._run(preview=True))
         btn_row.addWidget(self.apply_btn)
 
@@ -230,6 +243,7 @@ class InlineToolRunner(QWidget):
         layout.addLayout(btn_row)
 
         self.advanced_btn = QPushButton(tr('상세 옵션 창에서 열기'))
+        set_action_icon(self.advanced_btn, 'settings')
         self.advanced_btn.clicked.connect(lambda: self.viewer.open_advanced_dialog(self.current_key))
         layout.addWidget(self.advanced_btn)
 
@@ -305,7 +319,7 @@ class InlineToolRunner(QWidget):
             'source': str(source),
             'target': target,
             'operation': key,
-            'password': getattr(self.viewer, 'password', ''),
+            'password': (self.decrypt_pw.text() or getattr(self.viewer, 'password', '')) if key == 'decrypt' else getattr(self.viewer, 'password', ''),
             'user_password': self.user_pw.text(),
             'owner_password': self.owner_pw.text(),
             'allow_print': self.allow_print.isChecked(),
@@ -328,17 +342,19 @@ class InlineToolRunner(QWidget):
             'insert_after': self.insert_after.value(),
             'insert_count': self.insert_count.value(),
             'overlay_path': self.image_path.text(),
+            'overlay_password': self.overlay_pw.text(),
             'overlay_foreground': self.overlay_fg.isChecked(),
             'max_mb': self.max_mb.value(),
             'bates_prefix': self.bates_prefix.text(),
             'bates_start': self.bates_start.value(),
             'bates_digits': self.bates_digits.value(),
+            'bates_hide_old': self.bates_hide_old.isChecked(),
             'toc_text': self.toc_text.toPlainText(),
             'auto_toc': self.auto_toc_check.isChecked(),
             'attachment_mode': self.attach_mode.currentData(),
             'attachment_path': self.image_path.text(),
             'qr_text': self.qr_text.text(),
-            'stamp_pages': self.page_range.text() or '1',
+            'stamp_pages': self.page_range.text() or (str(self.viewer.page.value()) if getattr(self.viewer, 'page', None) else '1'),
             'stamp_x_mm': self.stamp_x.value(),
             'stamp_y_mm': self.stamp_y.value(),
             'stamp_width_mm': self.stamp_w.value(),
@@ -361,6 +377,8 @@ class InlineToolRunner(QWidget):
         self.save_btn.setEnabled(True)
         self.user_pw.clear()
         self.owner_pw.clear()
+        self.decrypt_pw.clear()
+        self.overlay_pw.clear()
         if self.preview_owner:
             owner, self.preview_owner = self.preview_owner, None
             if self.preview_success:
@@ -541,19 +559,20 @@ class RightToolsDock(QScrollArea):
 
     def __init__(self, viewer):
         super().__init__(viewer)
+        from .tool_browser import ToolDelegate
         self.viewer = viewer
         self.setObjectName('toolsPanel')
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setFixedWidth(264)
         self.setFrameShape(self.Shape.NoFrame)
 
         container = QWidget()
         container.setObjectName('editingActions')
-        container.setMaximumWidth(250)
+        self._container = container
+        self.set_panel_width(296)
         self.setWidget(container)
         outer = QVBoxLayout(container)
-        outer.setContentsMargins(6, 8, 6, 8)
+        outer.setContentsMargins(8, 8, 8, 8)
         outer.setSpacing(6)
 
         # Header row preserving viewer.close_tools_button
@@ -576,10 +595,10 @@ class RightToolsDock(QScrollArea):
         self.tabs = QTabWidget()
         outer.addWidget(self.tabs, 1)
 
-        # Tab 1: Tools Browser + Inline Runner
+        # Tab 1: Stirling-style Search + Recommended + Full Rich Catalog + Legacy Footer
         tools_host = QWidget()
         tools_layout = QVBoxLayout(tools_host)
-        tools_layout.setContentsMargins(0, 4, 0, 0)
+        tools_layout.setContentsMargins(0, 6, 0, 0)
         self.tool_stack = QStackedWidget()
         tools_layout.addWidget(self.tool_stack, 1)
 
@@ -587,6 +606,65 @@ class RightToolsDock(QScrollArea):
         cat_layout = QVBoxLayout(catalog_page)
         cat_layout.setContentsMargins(2, 2, 2, 2)
         cat_layout.setSpacing(6)
+
+        # 1. Search + Category Filter at very top (Stirling PDF style)
+        self.search_input = QLineEdit()
+        self.search_input.setMinimumWidth(0)
+        self.search_input.setPlaceholderText(tr('도구 검색 (Ctrl+K) · 65+ PDF 도구'))
+        self.search_input.setClearButtonEnabled(True)
+        self.search_input.textChanged.connect(self.refresh_catalog)
+        cat_layout.addWidget(self.search_input)
+
+        self.cat_combo = QComboBox()
+        self.cat_combo.setMinimumWidth(0)
+        self.cat_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.cat_combo.setMinimumContentsLength(6)
+        self.cat_combo.addItem(tr('전체 도구 ({count})', count=len(BY_KEY)), 'all')
+        self.cat_combo.addItem(tr('추천 도구'), 'recommended')
+        for grp in CATEGORIES:
+            self.cat_combo.addItem(tr(grp.title), grp.key)
+        self.cat_combo.currentIndexChanged.connect(self.refresh_catalog)
+        cat_layout.addWidget(self.cat_combo)
+
+        # 2. RECOMMENDED crisp 2-column grid
+        rec_lbl = QLabel(tr('RECOMMENDED · 추천 도구'))
+        rec_lbl.setStyleSheet('font-size:10px;font-weight:700;color:#64748b;letter-spacing:0.5px;padding-top:2px;')
+        cat_layout.addWidget(rec_lbl)
+        rec_grid = QGridLayout()
+        rec_grid.setSpacing(4)
+        for idx, (key, label, icon_name) in enumerate((
+            ('multi_tool', '멀티툴', 'thumbnail'),
+            ('merge', '빠른 병합', 'pages'),
+            ('save_as', '내보내기', 'save'),
+            ('target_size', '용량 압축', 'optimize'),
+            ('searchable', 'OCR 검색', 'scan'),
+            ('redact', '정보 삭제', 'security'),
+        )):
+            rb = QPushButton(tr(label))
+            rb.setObjectName('recommendedChip')
+            rb.setAutoDefault(False)
+            rb.setMinimumWidth(0)
+            rb.setProperty('alignLeft', True)
+            set_action_icon(rb, icon_name)
+            rb.clicked.connect(lambda _c=False, k=key: self.activate_tool(k))
+            rec_grid.addWidget(rb, idx // 2, idx % 2)
+        cat_layout.addLayout(rec_grid)
+
+        # 3. ALL TOOLS scrollable rich delegate catalog
+        all_lbl = QLabel(tr('ALL TOOLS · 전체 도구 ({count})', count=len(BY_KEY)))
+        all_lbl.setStyleSheet('font-size:10px;font-weight:700;color:#64748b;letter-spacing:0.5px;padding-top:4px;')
+        cat_layout.addWidget(all_lbl)
+
+        self.tool_list = QListWidget()
+        self.tool_list.setObjectName('stirlingToolCatalog')
+        self.tool_list.setMinimumWidth(0)
+        self.tool_list.setMinimumHeight(240)
+        self.tool_list.setSpacing(3)
+        self.tool_list.setWordWrap(True)
+        self.tool_list.setUniformItemSizes(False)
+        self.tool_list.setItemDelegate(ToolDelegate(self.tool_list))
+        self.tool_list.itemClicked.connect(lambda item: self.activate_tool(item.data(Qt.UserRole)))
+        cat_layout.addWidget(self.tool_list, 1)
 
         def qbtn(text, cb, icon_name):
             b = QPushButton(tr(text))
@@ -597,7 +675,11 @@ class RightToolsDock(QScrollArea):
             b.clicked.connect(cb)
             return b
 
-        # Legacy hook buttons kept visible/accessible in a compact 2-column grid so 3 locales fit within 285px
+        # 4. Quick utilities card below catalog (preserves every legacy hook cleanly without crowding top)
+        quick_lbl = QLabel(tr('빠른 실행 · 편집'))
+        quick_lbl.setStyleSheet('font-size:10px;font-weight:700;color:#64748b;letter-spacing:0.5px;padding-top:4px;')
+        cat_layout.addWidget(quick_lbl)
+
         viewer.panel_all_tools_button = qbtn('도구 검색', viewer.show_all_tools, 'search')
         viewer.undo_button = qbtn('실행 취소', viewer.undo_edit, 'undo')
         viewer.redo_button = qbtn('다시 실행', viewer.redo_edit, 'redo')
@@ -626,51 +708,6 @@ class RightToolsDock(QScrollArea):
             quick_grid.addWidget(b, row_idx, 0, 1, 2)
         cat_layout.addLayout(quick_grid)
 
-        # Recommended chips (Stirling "RECOMMENDED" section)
-        rec_lbl = QLabel(tr('RECOMMENDED · 추천 도구'))
-        rec_lbl.setStyleSheet('font-size:11px;font-weight:700;color:#657187;padding-top:2px;')
-        cat_layout.addWidget(rec_lbl)
-        rec_grid = QGridLayout()
-        rec_grid.setSpacing(4)
-        for idx, (key, label, icon_name) in enumerate((('multi_tool', '페이지 멀티툴', 'thumbnail'),
-                                                        ('merge', '문서 합치기', 'pages'),
-                                                        ('save_as', '다른형식 저장', 'save'),
-                                                        ('target_size', '용량 압축', 'optimize'))):
-            rb = QPushButton(tr(label))
-            rb.setAutoDefault(False)
-            rb.setMinimumWidth(0)
-            rb.setProperty('alignLeft', True)
-            set_action_icon(rb, icon_name)
-            rb.clicked.connect(lambda _c=False, k=key: self.activate_tool(k))
-            rec_grid.addWidget(rb, idx, 0, 1, 2)
-        cat_layout.addLayout(rec_grid)
-
-        # Inline Search + Category filter
-        self.search_input = QLineEdit()
-        self.search_input.setMinimumWidth(0)
-        self.search_input.setPlaceholderText(tr('도구 검색 (Ctrl+K) · 65+ PDF 도구'))
-        self.search_input.setClearButtonEnabled(True)
-        self.search_input.textChanged.connect(self.refresh_catalog)
-        cat_layout.addWidget(self.search_input)
-
-        self.cat_combo = QComboBox()
-        self.cat_combo.setMinimumWidth(0)
-        self.cat_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
-        self.cat_combo.setMinimumContentsLength(6)
-        self.cat_combo.addItem(tr('전체 도구 ({count})', count=len(BY_KEY)), 'all')
-        self.cat_combo.addItem(tr('추천 도구'), 'recommended')
-        for grp in CATEGORIES:
-            self.cat_combo.addItem(tr(grp.title), grp.key)
-        self.cat_combo.currentIndexChanged.connect(self.refresh_catalog)
-        cat_layout.addWidget(self.cat_combo)
-
-        self.tool_list = QListWidget()
-        self.tool_list.setMinimumWidth(0)
-        self.tool_list.setMinimumHeight(180)
-        self.tool_list.setWordWrap(True)
-        self.tool_list.itemClicked.connect(lambda item: self.activate_tool(item.data(Qt.UserRole)))
-        cat_layout.addWidget(self.tool_list, 1)
-
         self.inline_runner = InlineToolRunner(viewer, lambda: self.tool_stack.setCurrentIndex(0))
         self.tool_stack.addWidget(catalog_page)
         self.tool_stack.addWidget(self.inline_runner)
@@ -681,20 +718,33 @@ class RightToolsDock(QScrollArea):
         self.tabs.addTab(self.pipeline_panel, tr('파이프라인'))
 
         apply_style(container, '''
-            QWidget#editingActions {background:white;}
-            QLabel#toolsHeading {color:#263246; font-weight:700; padding:2px;}
-            QPushButton {background:#f7f9fc; border:1px solid #e2e7ef; padding:5px 6px; border-radius:5px; font-size:12px;}
+            QWidget#editingActions {background:#ffffff;}
+            QLabel#toolsHeading {color:#263246; font-weight:700; font-size:13px; padding:2px;}
+            QTabWidget::pane {border:0;}
+            QTabBar::tab {background:#eef2f8; color:#657187; border-radius:6px; padding:6px 12px; margin-right:4px; font-weight:600; font-size:12px;}
+            QTabBar::tab:selected {background:#edf2ff; color:#183b8f; border:1px solid #c6d3e6;}
+            QLineEdit, QComboBox {background:#f7f9fc; border:1px solid #dae2f0; border-radius:6px; padding:5px 8px; font-size:12px;}
+            QPushButton {background:#f7f9fc; border:1px solid #dae2f0; padding:5px 7px; border-radius:6px; font-size:12px;}
             QPushButton[alignLeft="true"] {text-align:left; padding:5px 8px;}
+            QPushButton#recommendedChip {background:#f7f9fc; border:1px solid #dae2f0; font-weight:600;}
+            QPushButton#recommendedChip:hover {background:#edf2ff; border-color:#7c9dfa;}
             QPushButton:hover {background:#edf2ff;}
             QPushButton#primary {background:#416ae6; color:white; border:0; font-weight:600; padding:7px 10px;}
-            QPushButton#primary:hover {background:#365ad0;}
-            QListWidget {background:#ffffff; border:1px solid #e2e7ef; border-radius:6px;}
-            QListWidget::item {padding:6px; border-bottom:1px solid #f0f3f8;}
-            QListWidget::item:hover {background:#f1f5fb;}
-            QListWidget::item:selected {background:#dbe6ff; color:#183b8f;}
+            QPushButton#primary:hover {background:#3e61d8;}
+            QListWidget#stirlingToolCatalog {background:#ffffff; border:1px solid #e2e7ef; border-radius:8px; outline:0;}
+            QListWidget#stirlingToolCatalog::item {background:#ffffff; border:1px solid #f0f3f8; border-radius:7px; margin:2px 3px;}
+            QListWidget#stirlingToolCatalog::item:hover {background:#f1f5fb; border-color:#c6d3e6;}
+            QListWidget#stirlingToolCatalog::item:selected {background:#dbe6ff; color:#183b8f; border:1px solid #7c9dfa;}
         ''')
-        apply_style(self, 'QScrollArea#toolsPanel {background:white; border-left:1px solid #e2e7ef;}')
+        apply_style(self, 'QScrollArea#toolsPanel {background:#ffffff; border-left:1px solid #e2e7ef;}')
         self.refresh_catalog()
+
+    def set_panel_width(self, width: int):
+        if self.width() != width:
+            self.setFixedWidth(width)
+        inner = max(220, width - 14)
+        if self._container.maximumWidth() != inner:
+            self._container.setMaximumWidth(inner)
 
     def refresh_catalog(self):
         query = self.search_input.text()
@@ -702,10 +752,14 @@ class RightToolsDock(QScrollArea):
         entries = find_tools(query, category)
         self.tool_list.clear()
         for entry in entries:
-            item = QListWidgetItem(f'{tr(entry.title)}\n{tr(entry.description)}')
+            title = tr(entry.title)
+            desc = tr(entry.description)
+            item = QListWidgetItem()
             item.setData(Qt.UserRole, entry.key)
+            item.setData(Qt.UserRole + 1, title)
+            item.setData(Qt.UserRole + 2, desc)
             item.setIcon(tool_icon(entry.key, entry.category, self.tool_list))
-            item.setToolTip(tr(entry.description))
+            item.setToolTip(f'{title} — {desc}')
             self.tool_list.addItem(item)
 
     def activate_tool(self, key: str):

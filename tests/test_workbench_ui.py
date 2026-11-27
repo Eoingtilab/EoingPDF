@@ -266,3 +266,95 @@ def test_show_update_status_live_dialog(monkeypatch):
     finally:
         host.close()
         host.deleteLater()
+
+
+def test_all_53_tools_inline_runner_and_shortcuts_and_library_filter(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QPushButton
+    from eoingpdf.advanced import TOOLS
+    from eoingpdf.workbench_dialogs import ShortcutsDialog
+
+    monkeypatch.setattr('eoingpdf.sniffer_ui.MicroSniffer.start', lambda *args, **kwargs: None)
+    doc_a = tmp_path / 'invoice_2026.pdf'
+    doc_b = tmp_path / 'contract_draft.pdf'
+    _make_pdf(doc_a, ['Invoice Page'])
+    _make_pdf(doc_b, ['Contract Page'])
+
+    viewer = PdfViewer(doc_a)
+    try:
+        dock = viewer.workspace_header.editing_panel
+        runner = dock.inline_runner
+        for key in TOOLS:
+            runner.load_tool(key)
+            assert runner.current_key == key
+            for btn in runner.findChildren(QPushButton):
+                assert not btn.icon().isNull(), f'{btn.text()} missing icon on {key}'
+        runner.load_tool('decrypt')
+        assert not runner.decrypt_pw.isHidden()
+        runner.load_tool('ocr_redact')
+        assert not runner.custom_terms.isHidden()
+        runner.load_tool('overlay_pdf')
+        assert not runner.overlay_pw.isHidden()
+        runner.load_tool('bates')
+        assert not runner.bates_hide_old.isHidden()
+
+        viewer.add_to_library([doc_b])
+        viewer.library_panel.search_input.setText('contract')
+        visible_names = [
+            viewer.library_panel.list.item(i).data(Qt.UserRole + 1)
+            for i in range(viewer.library_panel.list.count())
+            if not viewer.library_panel.list.item(i).isHidden()
+        ]
+        assert visible_names == ['contract_draft.pdf']
+
+        dlg = ShortcutsDialog(viewer)
+        dlg.close()
+        dlg.deleteLater()
+    finally:
+        viewer.dirty = False
+        viewer.close()
+        viewer.deleteLater()
+
+
+def test_update_banner_confirm_defer_and_updated_to(monkeypatch):
+    from PySide6.QtWidgets import QWidget
+    from eoingpdf.updates import AutoUpdater, attach_update_banner
+
+    host = QWidget()
+    app = QApplication.instance()
+    try:
+        banner = attach_update_banner(host, updated_to='2.5.1')
+        assert not banner.isHidden()
+        assert '2.5.1' in banner.text.text()
+
+        updater = AutoUpdater(app, host, auto_check=False)
+        updater.attach_banner(banner)
+        updater.pending = Path('EoingPDF-2.5.2-Setup-x64.exe')
+        updater.pending_digest = 'a' * 64
+        updater.pending_backup = Path('backup')
+        updater.pending_version = '2.5.2'
+        updater.running = False
+
+        monkeypatch.setattr('eoingpdf.updates.busy_window', lambda _w: False)
+        monkeypatch.setattr('eoingpdf.updates.sys.frozen', True, raising=False)
+        monkeypatch.setattr('eoingpdf.updates.verify_installer', lambda *a, **kw: None)
+        calls = []
+        monkeypatch.setattr('eoingpdf.update_helper.launch', lambda *a, **kw: calls.append((a, kw)))
+        monkeypatch.setattr(app, 'quit', lambda: None)
+
+        # poll() with confirm_restart=True must NOT force-quit; it shows ready notice instead
+        updater.poll()
+        assert not calls
+        assert '2.5.2' in banner.text.text()
+
+        updater.defer_until_close()
+        assert updater.apply_on_close
+        assert '2.5.2' in banner.text.text()
+
+        assert updater.apply_pending_now()
+        assert len(calls) == 1
+        assert calls[0][1]['version'] == '2.5.2'
+    finally:
+        if hasattr(app, 'updater') and getattr(app.updater, 'timer', None):
+            app.updater.timer.stop()
+        host.close()
+        host.deleteLater()

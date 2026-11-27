@@ -107,6 +107,7 @@ class PdfViewer(QDialog):
         self.materialized_path = None
         self._materialized_state = None
         self.thumbnail_mode = True
+        self.thumbnail_cache = set()
         self.dirty = False
         self.search_hit = None
         self.slideshow = None
@@ -124,8 +125,11 @@ class PdfViewer(QDialog):
         self.capture_chip = CaptureChip(self)
         layout.addWidget(self.capture_chip)
 
-        navigation = QHBoxLayout()
-        navigation.setContentsMargins(2, 0, 2, 0)
+        toolbar_card = QFrame()
+        toolbar_card.setObjectName('viewerToolbar')
+        apply_style(toolbar_card, 'QFrame#viewerToolbar {background:#ffffff; border:1px solid #e2e7ef; border-radius:8px; padding:2px 6px;}')
+        navigation = QHBoxLayout(toolbar_card)
+        navigation.setContentsMargins(4, 2, 4, 2)
         navigation.setSpacing(3)
         self.previous = QPushButton()
         set_action_icon(self.previous, 'previous')
@@ -269,7 +273,10 @@ class PdfViewer(QDialog):
         from .viewer_workspace import WorkspaceHeader
         self.workspace_header = WorkspaceHeader(self)
         layout.addWidget(self.workspace_header)
-        layout.addLayout(navigation)
+        self.update_banner_host = QVBoxLayout()
+        self.update_banner_host.setContentsMargins(0, 0, 0, 0)
+        layout.addLayout(self.update_banner_host)
+        layout.addWidget(toolbar_card)
 
         self.fit_timer = QTimer(self)
         self.fit_timer.setSingleShot(True)
@@ -285,7 +292,8 @@ class PdfViewer(QDialog):
 
         self.thumbnail_container = QWidget(self)
         self.thumbnail_container.setObjectName('thumbnailPanel')
-        self.thumbnail_container.setFixedWidth(164)
+        self.thumbnail_container.setFixedWidth(224)
+        self.thumbnails.setFixedWidth(212)
         left_wrap = QVBoxLayout(self.thumbnail_container)
         left_wrap.setContentsMargins(0, 0, 0, 0)
         left_wrap.setSpacing(0)
@@ -312,10 +320,15 @@ class PdfViewer(QDialog):
         thumb_layout.addWidget(self.thumbnails, 1)
 
         self.left_tabs.addTab(pages_tab, tr('페이지'))
-        self.left_tabs.addTab(self.library_panel, tr('라이브러리'))
+        self.left_tabs.addTab(self.library_panel, tr('보관함'))
         left_wrap.addWidget(self.left_tabs, 1)
 
-        apply_style(self.thumbnail_container, 'QWidget#thumbnailPanel {background:#eef2f8; border-right:1px solid #e2e7ef;}')
+        apply_style(
+            self.thumbnail_container,
+            'QWidget#thumbnailPanel {background:#ffffff; border-right:1px solid #e2e7ef;}'
+            'QTabBar::tab {background:#eef2f8; color:#657187; border-radius:6px; padding:5px 10px; margin:4px 2px; font-weight:600; font-size:12px;}'
+            'QTabBar::tab:selected {background:#edf2ff; color:#183b8f; border:1px solid #c6d3e6;}',
+        )
         self.thumbnail_container.hide()
         body.addWidget(self.thumbnail_container)
         self.sidebar_toggle.setChecked(True)
@@ -342,18 +355,23 @@ class PdfViewer(QDialog):
         footer = QHBoxLayout()
         self.status.setWordWrap(True)
         footer.addWidget(self.status, 1)
-        from .settings_ui import SettingsDialog
         from .product_policy import LICENSE_REQUIRED
         from .updates import show_update_status
+        self.shortcuts_button = QPushButton(tr('단축키 · F1'))
+        set_action_icon(self.shortcuts_button, 'list')
+        self.shortcuts_button.setAutoDefault(False)
+        self.shortcuts_button.clicked.connect(self.open_shortcuts_dialog)
+        footer.addWidget(self.shortcuts_button)
         self.settings_button = QPushButton(tr('설정·도움말'))
         set_action_icon(self.settings_button, 'settings')
         self.settings_button.setAutoDefault(False)
         settings_menu = action_menu(self.settings_button)
-        settings_menu.addAction(action_icon('settings', settings_menu), tr('설정')).triggered.connect(lambda: SettingsDialog(self).exec())
+        settings_menu.addAction(action_icon('settings', settings_menu), tr('설정')).triggered.connect(self.open_settings_dialog)
         if LICENSE_REQUIRED:
             from .license_ui import settings
             settings_menu.addAction(action_icon('license', settings_menu), tr('라이선스')).triggered.connect(lambda: settings(self))
         settings_menu.addAction(action_icon('update', settings_menu), tr('업데이트')).triggered.connect(lambda: show_update_status(self))
+        settings_menu.addAction(action_icon('list', settings_menu), tr('단축키 안내 · F1')).triggered.connect(self.open_shortcuts_dialog)
         self.settings_button.setMenu(settings_menu)
         footer.addWidget(self.settings_button)
         layout.addLayout(footer)
@@ -364,6 +382,7 @@ class PdfViewer(QDialog):
         self.zoom.currentIndexChanged.connect(self.render)
         for key, delta in [('PgDown', 1), ('PgUp', -1)]:
             shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.WidgetWithChildrenShortcut)
             shortcut.activated.connect(lambda d=delta: self.page.setValue(self.page.value() + d))
 
         if initial_paths:
@@ -382,12 +401,46 @@ class PdfViewer(QDialog):
             self.next.setEnabled(False)
             self.save_as_button.setEnabled(False)
 
-        QShortcut(QKeySequence('F5'), self).activated.connect(self.start_slideshow)
-        QShortcut(QKeySequence('Shift+F5'), self).activated.connect(self.start_slideshow)
-        QShortcut(QKeySequence('Ctrl+S'), self).activated.connect(self.save_changes)
-        QShortcut(QKeySequence('Ctrl+O'), self).activated.connect(self.choose_pdf)
+        def bind_key(seq, handler):
+            sc = QShortcut(QKeySequence(seq), self)
+            sc.setContext(Qt.WidgetWithChildrenShortcut)
+            sc.activated.connect(handler)
+            return sc
+
+        def jump_edge(end_page: bool):
+            from PySide6.QtWidgets import QApplication, QPlainTextEdit, QTextEdit
+            focus = QApplication.focusWidget()
+            if isinstance(focus, (QLineEdit, QAbstractSpinBox, QPlainTextEdit, QTextEdit)):
+                return
+            if self.count > 0:
+                self.page.setValue(self.count if end_page else 1)
+
+        bind_key('F1', self.open_shortcuts_dialog)
+        bind_key('F5', self.start_slideshow)
+        bind_key('Shift+F5', self.start_slideshow)
+        bind_key('Ctrl+S', self.save_changes)
+        bind_key('Ctrl+O', self.choose_pdf)
+        bind_key('Ctrl+W', self.close)
+        bind_key('Ctrl+P', lambda: self.print_button.showMenu())
+        bind_key('Ctrl+I', self.open_pdf_info)
+        bind_key('Ctrl+M', lambda: self.toggle_multi_tool())
+        bind_key('Ctrl+D', self.open_sign_draw)
+        bind_key('Ctrl+F', lambda: self.diagnostic_action('search_docs'))
+        bind_key('Ctrl+B', lambda: self.sidebar_toggle.toggle())
+        bind_key('Ctrl+J', lambda: self.editing_toggle.toggle())
+        bind_key('Ctrl++', lambda: self.adjust_zoom(1))
+        bind_key('Ctrl+=', lambda: self.adjust_zoom(1))
+        bind_key('Ctrl+-', lambda: self.adjust_zoom(-1))
+        bind_key('Ctrl+0', lambda: self.zoom.setCurrentIndex(4))
+        bind_key('Ctrl+1', lambda: self.zoom.setCurrentIndex(0))
+        bind_key('Ctrl+2', lambda: self.zoom.setCurrentIndex(1))
+        bind_key('Ctrl+R', lambda: self.quick_rotate(90))
+        bind_key('Ctrl+Shift+R', lambda: self.quick_rotate(270))
+        bind_key('Home', lambda: jump_edge(False))
+        bind_key('End', lambda: jump_edge(True))
 
     def _build_empty_home(self) -> QWidget:
+        from PySide6.QtWidgets import QGridLayout
         panel = QWidget(self)
         panel.setObjectName('emptyHome')
         outer = QVBoxLayout(panel)
@@ -396,48 +449,69 @@ class PdfViewer(QDialog):
 
         box = QFrame()
         box.setObjectName('dropHomeCard')
-        box.setMaximumWidth(560)
+        box.setMaximumWidth(620)
         card = QVBoxLayout(box)
-        card.setContentsMargins(28, 28, 28, 28)
+        card.setContentsMargins(32, 28, 32, 28)
         card.setSpacing(12)
 
-        title = QLabel(tr('어잉PDF · 내 PC에서 안전하게 PDF 작업'))
-        title.setStyleSheet('font-size:20px;font-weight:700;')
+        badge = QLabel(tr('● 내 PC에서 100% 안전하게 · 오프라인 PDF 작업실'))
+        badge.setObjectName('homeBadge')
+        badge.setAlignment(Qt.AlignCenter)
+        card.addWidget(badge, 0, Qt.AlignHCenter)
+
+        title = QLabel(tr('Your PDFs. Your control. · 어잉PDF'))
+        title.setStyleSheet('font-size:22px;font-weight:700;')
         title.setAlignment(Qt.AlignCenter)
         card.addWidget(title)
 
-        sub = QLabel(tr('여기에 PDF, 이미지, Office, 한글 파일을 끌어다 놓거나\n아래 버튼으로 문서를 열어 작업을 시작하세요.'))
+        sub = QLabel(tr('여기에 PDF, 이미지, Office, 한글 파일을 끌어다 놓거나\n아래 버튼으로 문서를 열어 65+ 도구를 바로 시작하세요.'))
         sub.setWordWrap(True)
         sub.setAlignment(Qt.AlignCenter)
         card.addWidget(sub)
 
         btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
         open_btn = QPushButton(tr('PDF 열기 (Ctrl+O)'))
         open_btn.setObjectName('primary')
         set_action_icon(open_btn, 'open')
         open_btn.clicked.connect(self.choose_pdf)
         btn_row.addWidget(open_btn)
 
-        add_btn = QPushButton(tr('라이브러리에 여러 파일 담기'))
+        add_btn = QPushButton(tr('보관함에 파일 담기'))
         set_action_icon(add_btn, 'pages')
         add_btn.clicked.connect(self.library_panel.choose_files)
         btn_row.addWidget(add_btn)
         card.addLayout(btn_row)
 
-        quick_row = QHBoxLayout()
-        for label, cb, icon_name in (
+        quick_grid = QGridLayout()
+        quick_grid.setSpacing(6)
+        for idx, (label, cb, icon_name) in enumerate((
             ('문서 합치기', lambda: self.diagnostic_action('merge'), 'pages'),
             ('PDF 변환', lambda: self.diagnostic_action('convert_to_pdf'), 'export'),
+            ('슬라이드쇼 · F5', self.start_slideshow, 'play'),
+            ('직인·서명 넣기', self.insert_stamp, 'stamp'),
+            ('페이지 멀티툴', lambda: self.toggle_multi_tool(True), 'thumbnail'),
             ('파이프라인', lambda: self.diagnostic_action('pipeline'), 'tools'),
-        ):
+        )):
             qb = QPushButton(tr(label))
+            qb.setAutoDefault(False)
+            qb.setMinimumWidth(0)
             set_action_icon(qb, icon_name)
             qb.clicked.connect(cb)
-            quick_row.addWidget(qb)
-        card.addLayout(quick_row)
+            quick_grid.addWidget(qb, idx // 3, idx % 3)
+        card.addLayout(quick_grid)
 
         outer.addWidget(box)
-        apply_style(panel, 'QWidget#emptyHome {background:#e8edf5;} QFrame#dropHomeCard {background:white;border:2px dashed #b9cbed;border-radius:16px;} QPushButton#primary {background:#416ae6;color:white;border:0;border-radius:8px;padding:10px 16px;font-weight:600;}')
+        apply_style(
+            panel,
+            'QWidget#emptyHome {background:#e8edf5;}'
+            'QFrame#dropHomeCard {background:#ffffff;border:1px solid #e2e7ef;border-radius:16px;}'
+            'QLabel#homeBadge {background:#ecf6f2;color:#458475;border:1px solid #c6d3e6;border-radius:12px;padding:4px 12px;font-size:11px;font-weight:600;}'
+            'QPushButton {background:#f7f9fc;border:1px solid #dae2f0;border-radius:8px;padding:8px 12px;font-size:12px;}'
+            'QPushButton:hover {background:#edf2ff;border-color:#7c9dfa;}'
+            'QPushButton#primary {background:#416ae6;color:white;border:0;border-radius:8px;padding:10px 16px;font-weight:600;font-size:13px;}'
+            'QPushButton#primary:hover {background:#3e61d8;}',
+        )
         return panel
 
     def show_empty_home(self):
@@ -490,6 +564,14 @@ class PdfViewer(QDialog):
             return
         from .workbench_dialogs import PdfInfoDialog
         PdfInfoDialog(self.path, self.password, self).exec()
+
+    def open_settings_dialog(self):
+        from .settings_ui import SettingsDialog
+        SettingsDialog(self).exec()
+
+    def open_shortcuts_dialog(self):
+        from .workbench_dialogs import ShortcutsDialog
+        ShortcutsDialog(self).exec()
 
     def open_sign_draw(self):
         if self.path is None:
@@ -1388,6 +1470,10 @@ class PdfViewer(QDialog):
             self.canvas.clear()
             self.thumbnail_timer.stop()
             super().reject()
+            from PySide6.QtWidgets import QApplication
+            updater = getattr(QApplication.instance(), 'updater', None)
+            if updater is not None and hasattr(updater, 'flush_on_close'):
+                updater.flush_on_close()
             event.accept()
         else:
             event.ignore()
@@ -1494,6 +1580,14 @@ class PdfViewer(QDialog):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        if hasattr(self, 'thumbnail_container'):
+            thumb_w = 224 if self.width() >= 900 else 164
+            if self.thumbnail_container.width() != thumb_w:
+                self.thumbnail_container.setFixedWidth(thumb_w)
+                self.thumbnails.setFixedWidth(212 if thumb_w >= 220 else 156)
+        if hasattr(self, 'workspace_header') and hasattr(self.workspace_header, 'editing_panel'):
+            dock_w = 296 if self.width() >= 920 else 264
+            self.workspace_header.editing_panel.set_panel_width(dock_w)
         self._schedule_fit_render()
 
     def showEvent(self, event):

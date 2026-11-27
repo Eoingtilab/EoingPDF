@@ -197,6 +197,9 @@ class Window(QMainWindow):
         main = QVBoxLayout(workspace)
         main.setContentsMargins(32, 27, 32, 23)
         main.setSpacing(16)
+        self.update_banner_host = QVBoxLayout()
+        self.update_banner_host.setContentsMargins(0, 0, 0, 0)
+        main.addLayout(self.update_banner_host)
         top = QHBoxLayout()
         top.addWidget(label(tr('내 문서를 위한 작은 작업실'), 'small'))
         top.addStretch()
@@ -600,6 +603,9 @@ class Window(QMainWindow):
         else:
             if dock is not None:
                 dock.close()
+            updater = getattr(QApplication.instance(), 'updater', None)
+            if updater is not None and hasattr(updater, 'flush_on_close'):
+                updater.flush_on_close()
             event.accept()
 
     def open_search(self):
@@ -658,6 +664,7 @@ def main():
     parser.add_argument('--dock', action='store_true', help='Open the floating file collection dock')
     parser.add_argument('--classic', action='store_true', help='Open the classic task launcher window')
     parser.add_argument('--skip-update-once', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--updated-to', default='', help=argparse.SUPPRESS)
     args = parser.parse_args()
     app = QApplication(sys.argv[:1])
     from .localization import install_language
@@ -710,7 +717,7 @@ def main():
             return
     window.show()
     from .updates import start_updates
-    start_updates(app, window)
+    start_updates(app, window, updated_to=args.updated_to)
     if args.files and isinstance(window, Window):
         window.add_files(args.files)
     if args.screenshot:

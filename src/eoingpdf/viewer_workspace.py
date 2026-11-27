@@ -96,6 +96,7 @@ class WorkspaceHeader(QWidget):
             ('두 문서 비교', lambda: viewer.diagnostic_action('compare_docs')),
             ('문서 내용 검색', lambda: viewer.diagnostic_action('search_docs')),
             ('작은 창에 파일 모으기', lambda: viewer.open_staging_dock()),
+            ('단축키 안내 · F1', viewer.open_shortcuts_dialog),
         )
 
         for title, mnemonic, entries in (
@@ -177,17 +178,18 @@ class WorkspaceHeader(QWidget):
         viewer.editing_toggle.setAccessibleName(tr('도구 목록 표시'))
 
         apply_style(self, '''
-            QWidget#workspaceHeader {background:#f7f9fc; border-bottom:1px solid #e7ecf3;}
-            QPushButton {background:#f7f9fc; border:0; padding:6px 10px; border-radius:6px;}
+            QWidget#workspaceHeader {background:#ffffff; border-bottom:1px solid #e2e7ef; padding:2px 4px;}
+            QPushButton {background:#ffffff; border:0; padding:6px 10px; border-radius:7px;}
             QPushButton:hover {background:#f1f5fb;}
             QPushButton:checked {background:#dbe6ff;}
             QPushButton#slideshowAction {border:1.5px solid #416ae6;}
             QPushButton#slideshowAction:hover {background:#dbe6ff;}
             QPushButton#insertStamp {border:1.5px solid #458475;}
-            QPushButton#insertStamp:hover {background:#dbe6ff;}
+            QPushButton#insertStamp:hover {background:#ecf6f2;}
             QPushButton#saveAsAction {border:1px solid #c6d3e6;}
         ''')
 
+        from PySide6.QtCore import Qt
         for key, callback in (
             ('Ctrl+Z', viewer.undo_edit),
             ('Ctrl+Y', viewer.redo_edit),
@@ -197,6 +199,7 @@ class WorkspaceHeader(QWidget):
             ('Ctrl+Shift+S', viewer.save_as),
         ):
             shortcut = QShortcut(QKeySequence(key), viewer)
+            shortcut.setContext(Qt.WidgetWithChildrenShortcut)
             shortcut.activated.connect(callback)
         self.refresh_history()
 
@@ -233,14 +236,14 @@ class NavigationStrip(QWidget):
     def __init__(self, viewer):
         super().__init__(viewer)
         self.setObjectName('navigationStrip')
-        self.setFixedWidth(44)
+        self.setFixedWidth(40)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 6, 4, 6)
-        layout.setSpacing(6)
+        layout.setContentsMargins(4, 5, 4, 5)
+        layout.setSpacing(4)
 
         def rail_btn(icon_name, tooltip, checkable=False):
             btn = QPushButton(self)
-            btn.setFixedSize(36, 36)
+            btn.setFixedSize(30, 30)
             btn.setCheckable(checkable)
             set_action_icon(btn, icon_name)
             btn.setToolTip(tr(tooltip))
@@ -254,22 +257,25 @@ class NavigationStrip(QWidget):
         viewer.sidebar_toggle.hide()
         viewer.thumbnail_rail_button = button
 
-        viewer.library_rail_button = rail_btn('open', '문서 라이브러리')
+        viewer.library_rail_button = rail_btn('open', 'PDF 보관함')
         viewer.library_rail_button.clicked.connect(viewer.open_library_tab)
 
-        viewer.multitool_rail_button = rail_btn('pages', '페이지 멀티툴 편집기', checkable=True)
+        viewer.multitool_rail_button = rail_btn('pages', '페이지 멀티툴 편집기 · Ctrl+M', checkable=True)
         viewer.multitool_rail_button.clicked.connect(lambda checked: viewer.toggle_multi_tool(checked))
 
         viewer.compare_rail_button = rail_btn('table', '두 문서 비교')
         viewer.compare_rail_button.clicked.connect(lambda: viewer.diagnostic_action('compare_docs'))
 
-        viewer.search_rail_button = rail_btn('search', '폴더 내 문서 검색')
+        viewer.search_rail_button = rail_btn('search', '폴더 내 문서 검색 · Ctrl+F')
         viewer.search_rail_button.clicked.connect(lambda: viewer.diagnostic_action('search_docs'))
 
         viewer.pipeline_rail_button = rail_btn('tools', '자동화 파이프라인')
         viewer.pipeline_rail_button.clicked.connect(lambda: viewer.diagnostic_action('pipeline'))
 
         layout.addStretch(1)
+
+        viewer.shortcuts_rail_button = rail_btn('list', '단축키 안내 · F1')
+        viewer.shortcuts_rail_button.clicked.connect(viewer.open_shortcuts_dialog)
 
         def toggle_theme():
             controller = getattr(QApplication.instance(), 'eoing_theme', None)
@@ -279,11 +285,14 @@ class NavigationStrip(QWidget):
         viewer.theme_rail_button = rail_btn('presenter', '밝은/어두운 테마 전환')
         viewer.theme_rail_button.clicked.connect(toggle_theme)
 
+        viewer.settings_rail_button = rail_btn('settings', '설정 · 업데이트')
+        viewer.settings_rail_button.clicked.connect(viewer.open_settings_dialog)
+
         apply_style(self, '''
-            QWidget#navigationStrip {background:#f7f9fc; border-right:1px solid #e7ecf3;}
-            QPushButton {background:#f7f9fc; border:0; border-radius:6px; padding:4px;}
-            QPushButton:hover {background:#f1f5fb;}
-            QPushButton:checked {background:#dbe6ff;}
+            QWidget#navigationStrip {background:#ffffff; border-right:1px solid #e2e7ef;}
+            QPushButton {background:#ffffff; border:1px solid #e2e7ef; border-radius:8px; padding:4px;}
+            QPushButton:hover {background:#f1f5fb; border-color:#c6d3e6;}
+            QPushButton:checked {background:#edf2ff; border-color:#7c9dfa;}
         ''')
 
 

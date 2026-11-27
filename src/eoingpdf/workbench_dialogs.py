@@ -516,5 +516,71 @@ class PdfInfoDialog(QDialog):
         except Exception as error:
             view.setPlainText(str(error))
         close_btn = QPushButton(tr('닫기'))
+        set_action_icon(close_btn, 'close')
         close_btn.clicked.connect(self.accept)
         layout.addWidget(close_btn)
+
+
+class ShortcutsDialog(QDialog):
+    """Comprehensive quick-reference dialog listing all viewer, editing, and presentation shortcuts."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(tr('단축키 안내 · 어잉PDF'))
+        self.resize(560, 520)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(10)
+
+        head = QLabel(tr('자주 쓰는 단축키로 PDF 보기·편집·발표를 빠르게 전환할 수 있습니다.'))
+        head.setWordWrap(True)
+        layout.addWidget(head)
+
+        groups = (
+            (tr('파일 · 저장'), (
+                ('Ctrl+O', tr('PDF 열기')),
+                ('Ctrl+S', tr('사본 저장 (원본 보존)')),
+                ('Ctrl+Shift+S', tr('다른 이름으로 저장 · 15종 형식 내보내기')),
+                ('Ctrl+P', tr('인쇄 준비 메뉴 열기')),
+                ('Ctrl+I', tr('PDF 상세 정보 · 규격 검사')),
+                ('Ctrl+W', tr('현재 문서 창 닫기')),
+            )),
+            (tr('보기 · 화면 전환'), (
+                ('F5 / Shift+F5', tr('현재 페이지부터 슬라이드쇼 시작')),
+                ('Ctrl+B', tr('왼쪽 사이드바(페이지·보관함) 표시/숨기기')),
+                ('Ctrl+J', tr('오른쪽 PDF 도구 패널 표시/숨기기')),
+                ('Ctrl++ / Ctrl+-', tr('화면 확대 / 축소')),
+                ('Ctrl+0 / Ctrl+1 / Ctrl+2', tr('100% / 너비 맞춤 / 페이지 맞춤')),
+                ('PgUp / PgDown / Home / End', tr('이전 / 다음 / 첫 / 마지막 페이지')),
+            )),
+            (tr('편집 · 도구 · 검색'), (
+                ('Ctrl+K / Ctrl+Shift+T', tr('65+ PDF 도구 검색 및 열기')),
+                ('Ctrl+M', tr('페이지 멀티툴 편집기 전환')),
+                ('Ctrl+D', tr('서명 직접 그리기 (투명 PNG 도장)')),
+                ('Ctrl+F', tr('폴더 내 문서 내용 검색')),
+                ('Ctrl+R / Ctrl+Shift+R', tr('현재 문서 시계 / 반시계 90° 회전')),
+                ('Ctrl+Z / Ctrl+Y', tr('실행 취소 / 다시 실행')),
+                ('F1', tr('단축키 안내 열기')),
+            )),
+        )
+
+        lines = []
+        for group_title, pairs in groups:
+            lines.append(f'■ {group_title}')
+            for shortcut, desc in pairs:
+                lines.append(f'  {shortcut:<24}  {desc}')
+            lines.append('')
+
+        viewer = QPlainTextEdit()
+        viewer.setReadOnly(True)
+        viewer.setPlainText('\n'.join(lines).strip())
+        layout.addWidget(viewer, 1)
+
+        close_btn = QPushButton(tr('닫기'))
+        set_action_icon(close_btn, 'close')
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn, 0, Qt.AlignRight)
+        apply_style(
+            self,
+            'QDialog {background:#ffffff;} QPlainTextEdit {background:#f7f9fc;border:1px solid #dae2f0;border-radius:8px;padding:10px;font-size:13px;}',
+        )

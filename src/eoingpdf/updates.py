@@ -286,8 +286,13 @@ class AutoUpdater:
         self.results = queue.Queue()
         self.pending = None
         self.pending_digest = None
+        self.pending_version = None
         self.pending_backup = None
         self.latest_version = None
+        self.confirm_restart = True
+        self.apply_on_close = False
+        self.notice_dismissed = False
+        self._banner = None
         self.message = tr('자동 업데이트를 확인하고 있습니다.')
         self.running = False
         self.timer = QTimer(app)
@@ -298,17 +303,32 @@ class AutoUpdater:
         else:
             self.message = tr('복원 후 이번 실행에서는 자동 업데이트를 건너뛰었습니다.')
 
+    def attach_banner(self, banner):
+        self._banner = banner
+        self._sync_banner()
+
+    def _sync_banner(self):
+        banner = getattr(self, '_banner', None)
+        if banner is not None:
+            banner.sync_from_updater(self)
+
     def check(self):
         if self.running or self.pending:
             return
         self.running = True
+        self.notice_dismissed = False
         self.message = tr('자동 업데이트를 확인하고 있습니다.')
+        self._sync_banner()
+
         def work():
             try:
                 info = update_info(current_version())
+                if info:
+                    self.latest_version = info['version']
+                    self.message = tr('새 버전 {version}을 다운로드하고 있습니다…', version=info['version'])
                 path = download(info) if info else None
                 backup = backup_current_install() if path and getattr(sys, 'frozen', False) else None
-                message = (tr('업데이트 파일과 복구 백업이 준비되었습니다.') if path else
+                message = (tr('새 버전 {version} 다운로드 완료 · 업데이트가 준비되었습니다.', version=info['version']) if path else
                            tr('현재 버전보다 새로운 업데이트가 없습니다.'))
                 self.results.put((path, message, info['sha256'] if info else None,
                                   info['version'] if info else None, backup,
@@ -317,7 +337,74 @@ class AutoUpdater:
                 self.results.put((None, str(error), None))
             except Exception:
                 self.results.put((None, tr('업데이트 정보를 확인하거나 설치 파일을 검증하지 못했습니다. 다음 실행 때 다시 확인합니다.'), None))
+
         threading.Thread(target=work, daemon=True).start()
+
+    def _install_pending(self, restart=True):
+        if not self.pending:
+            return False
+        if not getattr(sys, 'frozen', False):
+            self.message = tr('개발 실행에서는 자동 설치를 하지 않습니다.')
+            self.pending = None
+            self._sync_banner()
+            return False
+        try:
+            verify_installer(self.pending, self.pending_digest)
+            backup = getattr(self, 'pending_backup', None)
+            if backup is None:
+                raise ValueError(tr('검증된 복구 백업이 준비되지 않았습니다.'))
+            from .update_helper import launch
+            kwargs = dict(installer=self.pending, digest=self.pending_digest,
+                          version=getattr(self, 'pending_version', None))
+            if not restart:
+                kwargs['restart'] = False
+            launch(backup, **kwargs)
+        except ValueError:
+            self.message = tr('업데이트 설치 직전 파일 검증에 실패했습니다. 다시 확인해 주세요.')
+            self.pending = None
+            self.pending_digest = None
+            self._sync_banner()
+            return False
+        except OSError:
+            self.message = tr('업데이트 설치 파일을 실행하지 못했습니다.')
+            self.pending = None
+            self._sync_banner()
+            return False
+        if hasattr(self, 'timer') and self.timer is not None:
+            self.timer.stop()
+        if restart and getattr(self, 'app', None) is not None:
+            self.app.quit()
+        return True
+
+    def apply_pending_now(self):
+        if not getattr(self, 'pending', None):
+            return False
+        if busy_window(self.window):
+            from PySide6.QtWidgets import QMessageBox
+            self.message = tr('저장하지 않은 변경이나 진행 중인 작업을 마친 뒤 업데이트할 수 있습니다.')
+            self._sync_banner()
+            QMessageBox.information(self.window, tr('자동 업데이트'), self.message)
+            return False
+        return self._install_pending(restart=True)
+
+    def defer_until_close(self):
+        if not getattr(self, 'pending', None):
+            return
+        self.apply_on_close = True
+        self.notice_dismissed = False
+        ver = getattr(self, 'pending_version', None) or getattr(self, 'latest_version', '') or ''
+        self.message = tr('창을 닫으면 새 버전 {version}으로 자동 업데이트합니다.', version=ver)
+        self._sync_banner()
+
+    def dismiss_notice(self):
+        self.notice_dismissed = True
+        self.apply_on_close = False
+        self._sync_banner()
+
+    def flush_on_close(self):
+        if getattr(self, 'pending', None) and getattr(self, 'apply_on_close', False) and getattr(sys, 'frozen', False):
+            return self._install_pending(restart=False)
+        return False
 
     def poll(self):
         try:
@@ -327,40 +414,168 @@ class AutoUpdater:
             self.pending_backup = result[4] if len(result) > 4 else None
             self.latest_version = result[5] if len(result) > 5 else self.latest_version
             self.running = False
+            self.notice_dismissed = False
+            self._sync_banner()
         except queue.Empty:
-            pass
+            if getattr(self, 'running', False):
+                self._sync_banner()
         if self.pending and not busy_window(self.window):
-            if not getattr(sys, 'frozen', False):
-                self.message = tr('개발 실행에서는 자동 설치를 하지 않습니다.')
-                self.pending = None
+            if getattr(self, 'confirm_restart', False):
+                self._sync_banner()
                 return
-            try:
-                verify_installer(self.pending, self.pending_digest)
-                backup = getattr(self, 'pending_backup', None)
-                if backup is None:
-                    raise ValueError(tr('검증된 복구 백업이 준비되지 않았습니다.'))
-                from .update_helper import launch
-                launch(backup, installer=self.pending, digest=self.pending_digest, version=getattr(self, 'pending_version', None))
-            except ValueError:
-                self.message = tr('업데이트 설치 직전 파일 검증에 실패했습니다. 다시 확인해 주세요.')
-                self.pending = None
-                self.pending_digest = None
-                return
-            except OSError:
-                self.message = tr('업데이트 설치 파일을 실행하지 못했습니다.')
-                self.pending = None
-                return
-            self.timer.stop()
-            self.app.quit()
+            self._install_pending(restart=True)
 
 
-def start_updates(app, window):
+def attach_update_banner(window, updated_to=''):
+    """Create and attach a non-intrusive top update notification strip to any main window."""
+    from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy
+    from .action_icons import set_action_icon
+    from .sdk_theme import apply_style
+
+    class _Banner(QFrame):
+        def __init__(self, host_window):
+            super().__init__(host_window)
+            self.host_window = host_window
+            self._updated_version = ''
+            self.setObjectName('updateBanner')
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            layout = QHBoxLayout(self)
+            layout.setContentsMargins(14, 7, 14, 7)
+            layout.setSpacing(8)
+            self.text = QLabel()
+            self.text.setWordWrap(True)
+            layout.addWidget(self.text, 1)
+
+            self.install_btn = QPushButton(tr('지금 업데이트'))
+            set_action_icon(self.install_btn, 'update')
+            self.install_btn.setAutoDefault(False)
+            self.install_btn.clicked.connect(self._apply_now)
+            layout.addWidget(self.install_btn)
+
+            self.defer_btn = QPushButton(tr('닫을 때 적용'))
+            set_action_icon(self.defer_btn, 'history')
+            self.defer_btn.setAutoDefault(False)
+            self.defer_btn.clicked.connect(self._defer_close)
+            layout.addWidget(self.defer_btn)
+
+            self.whats_new_btn = QPushButton(tr('단축키 안내'))
+            set_action_icon(self.whats_new_btn, 'list')
+            self.whats_new_btn.setAutoDefault(False)
+            self.whats_new_btn.clicked.connect(self._show_shortcuts)
+            layout.addWidget(self.whats_new_btn)
+
+            self.dismiss_btn = QPushButton()
+            set_action_icon(self.dismiss_btn, 'close')
+            self.dismiss_btn.setFixedSize(28, 28)
+            self.dismiss_btn.setToolTip(tr('알림 닫기'))
+            apply_style(self.dismiss_btn, 'QPushButton {padding:0;border:0;background:#edf2ff;}')
+            self.dismiss_btn.clicked.connect(self._dismiss)
+            layout.addWidget(self.dismiss_btn)
+            self.hide()
+
+        def _updater(self):
+            from PySide6.QtWidgets import QApplication
+            return getattr(QApplication.instance(), 'updater', None)
+
+        def _apply_now(self):
+            updater = self._updater()
+            if updater is not None:
+                updater.apply_pending_now()
+
+        def _defer_close(self):
+            updater = self._updater()
+            if updater is not None:
+                updater.defer_until_close()
+
+        def _show_shortcuts(self):
+            if hasattr(self.host_window, 'open_shortcuts_dialog'):
+                self.host_window.open_shortcuts_dialog()
+
+        def _dismiss(self):
+            self._updated_version = ''
+            updater = self._updater()
+            if updater is not None:
+                updater.dismiss_notice()
+            self.hide()
+
+        def show_updated(self, version: str):
+            self._updated_version = str(version or current_version())
+            self.text.setText(tr('어잉PDF {version} 버전으로 업데이트가 완료되었습니다!', version=self._updated_version))
+            apply_style(
+                self,
+                'QFrame#updateBanner {background:#ecf6f2;border-bottom:1px solid #c6d3e6;}'
+                'QLabel {color:#458475;font-weight:600;font-size:12px;}',
+            )
+            self.install_btn.hide()
+            self.defer_btn.hide()
+            self.whats_new_btn.setVisible(hasattr(self.host_window, 'open_shortcuts_dialog'))
+            self.dismiss_btn.show()
+            self.show()
+
+        def sync_from_updater(self, updater):
+            if getattr(updater, 'notice_dismissed', False) and not self._updated_version:
+                self.hide()
+                return
+            if updater.pending:
+                self._updated_version = ''
+                ver = getattr(updater, 'pending_version', None) or getattr(updater, 'latest_version', '') or ''
+                apply_style(
+                    self,
+                    'QFrame#updateBanner {background:#edf2ff;border-bottom:1px solid #c6d3e6;}'
+                    'QLabel {color:#183b8f;font-weight:600;font-size:12px;}',
+                )
+                if getattr(updater, 'apply_on_close', False):
+                    self.text.setText(tr('창을 닫으면 새 버전 {version}으로 자동 업데이트합니다.', version=ver))
+                    self.defer_btn.hide()
+                    self.install_btn.setText(tr('지금 업데이트'))
+                    self.install_btn.setVisible(getattr(sys, 'frozen', False))
+                else:
+                    self.text.setText(tr('새 버전 {version} 다운로드 완료 — 지금 업데이트할까요?', version=ver))
+                    self.install_btn.setText(tr('지금 업데이트'))
+                    self.install_btn.setVisible(getattr(sys, 'frozen', False))
+                    self.defer_btn.setVisible(getattr(sys, 'frozen', False))
+                self.whats_new_btn.hide()
+                self.dismiss_btn.show()
+                self.show()
+            elif updater.running and getattr(updater, 'latest_version', None) and getattr(updater, 'latest_version', current_version()) != current_version():
+                self._updated_version = ''
+                apply_style(
+                    self,
+                    'QFrame#updateBanner {background:#f7f9fc;border-bottom:1px solid #c6d3e6;}'
+                    'QLabel {color:#416ae6;font-weight:600;font-size:12px;}',
+                )
+                self.text.setText(updater.message)
+                self.install_btn.hide()
+                self.defer_btn.hide()
+                self.whats_new_btn.hide()
+                self.dismiss_btn.show()
+                self.show()
+            elif not self._updated_version:
+                self.hide()
+
+    banner = getattr(window, '_update_banner', None)
+    if banner is None:
+        banner = _Banner(window)
+        window._update_banner = banner
+        host_layout = getattr(window, 'update_banner_host', None)
+        if host_layout is not None:
+            host_layout.addWidget(banner)
+        elif hasattr(window, 'layout') and window.layout() is not None:
+            window.layout().insertWidget(0, banner)
+    if updated_to:
+        banner.show_updated(updated_to)
+    return banner
+
+
+def start_updates(app, window, updated_to=''):
+    banner = attach_update_banner(window, updated_to=updated_to)
     from .package_context import store_managed_updates
     if store_managed_updates():
         app.updater = None
         app.store_managed_updates = True
         return
     app.updater = AutoUpdater(app, window, auto_check='--skip-update-once' not in sys.argv)
+    app.updater.attach_banner(banner)
 
 
 def show_update_status(parent):
@@ -466,7 +681,7 @@ def show_update_status(parent):
     def trigger_install_now():
         if updater is not None and updater.pending:
             dialog.accept()
-            updater.poll()
+            updater.apply_pending_now()
 
     recheck_btn.clicked.connect(trigger_recheck)
     install_btn.clicked.connect(trigger_install_now)

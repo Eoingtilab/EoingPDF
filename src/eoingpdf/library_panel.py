@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 
 from .action_icons import set_action_icon
 from .convert import SUPPORTED
+from .core import open_pdf
 from .localization import tr
 from .sdk_theme import apply_style
 
@@ -39,45 +40,78 @@ class LibraryPanel(QWidget):
         layout.setSpacing(6)
 
         top = QHBoxLayout()
-        top.addWidget(QLabel(tr('문서 라이브러리')), 1)
+        title_lbl = QLabel(tr('보관함'))
+        title_lbl.setStyleSheet('font-weight:700;font-size:12px;')
+        top.addWidget(title_lbl, 1)
         add_btn = QPushButton(tr('+ 추가'))
         add_btn.setAutoDefault(False)
+        add_btn.setMinimumWidth(0)
         set_action_icon(add_btn, 'open')
         add_btn.clicked.connect(self.choose_files)
         top.addWidget(add_btn)
         layout.addLayout(top)
+
+        from PySide6.QtWidgets import QLineEdit
+        self.search_input = QLineEdit()
+        self.search_input.setMinimumWidth(0)
+        self.search_input.setPlaceholderText(tr('파일명 검색…'))
+        self.search_input.setClearButtonEnabled(True)
+        self.search_input.textChanged.connect(self._apply_filter)
+        layout.addWidget(self.search_input)
 
         self.list = QListWidget()
         self.list.setObjectName('libraryList')
         self.list.itemClicked.connect(self._on_item_clicked)
         layout.addWidget(self.list, 1)
 
-        actions = QHBoxLayout()
-        actions.setSpacing(4)
         self.merge_btn = QPushButton(tr('체크 합치기'))
+        self.merge_btn.setMinimumWidth(0)
+        self.merge_btn.setToolTip(tr('선택한 파일들을 하나의 PDF로 합칩니다.'))
         set_action_icon(self.merge_btn, 'pages')
         self.merge_btn.clicked.connect(lambda: self.batch_merge_requested.emit(self.checked_or_all()))
-        actions.addWidget(self.merge_btn)
+        layout.addWidget(self.merge_btn)
 
         self.convert_btn = QPushButton(tr('PDF 변환'))
+        self.convert_btn.setMinimumWidth(0)
+        self.convert_btn.setToolTip(tr('선택한 문서·이미지를 PDF로 변환합니다.'))
         set_action_icon(self.convert_btn, 'export')
         self.convert_btn.clicked.connect(lambda: self.batch_convert_requested.emit(self.checked_or_all()))
-        actions.addWidget(self.convert_btn)
-        layout.addLayout(actions)
+        layout.addWidget(self.convert_btn)
 
         remove_row = QHBoxLayout()
-        remove_btn = QPushButton(tr('선택 제거'))
+        remove_row.setSpacing(4)
+        remove_btn = QPushButton(tr('제거'))
+        remove_btn.setMinimumWidth(0)
+        remove_btn.setToolTip(tr('선택한 항목을 목록에서 제거합니다.'))
         set_action_icon(remove_btn, 'delete')
         remove_btn.clicked.connect(self.remove_selected)
         remove_row.addWidget(remove_btn)
         clear_btn = QPushButton(tr('비우기'))
+        clear_btn.setMinimumWidth(0)
+        clear_btn.setToolTip(tr('보관함 목록을 비웁니다.'))
         set_action_icon(clear_btn, 'clear')
         clear_btn.clicked.connect(self.clear)
         remove_row.addWidget(clear_btn)
         layout.addLayout(remove_row)
 
-        apply_style(self, 'QWidget#libraryPanel {background:#eef2f8;} QListWidget {background:white;border:1px solid #dae2f0;border-radius:6px;} QPushButton {padding:5px 8px;}')
+        apply_style(self, '''
+            QWidget#libraryPanel {background:#ffffff;}
+            QLineEdit {background:#f7f9fc;border:1px solid #dae2f0;border-radius:6px;padding:5px 8px;font-size:12px;}
+            QListWidget {background:#ffffff;border:1px solid #e2e7ef;border-radius:8px;outline:0;}
+            QListWidget::item {padding:7px 8px;border-bottom:1px solid #f0f3f8;border-radius:6px;margin:2px 3px;}
+            QListWidget::item:hover {background:#f1f5fb;}
+            QListWidget::item:selected {background:#edf2ff;color:#183b8f;border-left:3px solid #416ae6;}
+            QPushButton {background:#f7f9fc;border:1px solid #dae2f0;border-radius:6px;padding:5px 6px;font-size:12px;}
+            QPushButton:hover {background:#edf2ff;}
+        ''')
         self.refresh_buttons()
+
+    def _apply_filter(self):
+        query = (self.search_input.text() or '').strip().casefold()
+        for i in range(self.list.count()):
+            item = self.list.item(i)
+            name = (item.data(Qt.UserRole + 1) or '').casefold()
+            item.setHidden(bool(query and query not in name))
 
     def add_paths(self, raw_paths: list[str | Path]) -> list[Path]:
         added = []
@@ -96,12 +130,21 @@ class LibraryPanel(QWidget):
             self.paths.append(p)
             added.append(p)
             size_mb = p.stat().st_size / 1048576
-            item = QListWidgetItem(f'{p.name}\n{size_mb:.2f} MB')
+            meta = f'{size_mb:.2f} MB'
+            if p.suffix.lower() == '.pdf':
+                try:
+                    with open_pdf(p) as doc:
+                        meta = f'{doc.page_count}p · {size_mb:.2f} MB'
+                except Exception:
+                    pass
+            item = QListWidgetItem(f'{p.name}\n{meta}')
             item.setData(Qt.UserRole, str(p))
+            item.setData(Qt.UserRole + 1, p.name)
             item.setToolTip(str(p))
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             item.setCheckState(Qt.Checked if p.suffix.lower() == '.pdf' else Qt.Unchecked)
             self.list.addItem(item)
+        self._apply_filter()
         self.refresh_buttons()
         return added
 
