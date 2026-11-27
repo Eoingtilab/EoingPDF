@@ -58,7 +58,12 @@ def test_catalog_covers_all_transforms_once_and_valid_categories():
     values = [entry.key for entry in ENTRIES]
     assert len(values) == len(set(values))
     assert set(values).intersection(TOOLS) == set(TOOLS)
-    assert set(values) - set(TOOLS) == {'presentation', 'form', 'table', 'copy_image', 'viewmode'}
+    assert set(values) - set(TOOLS) == {
+        'presentation', 'save_as', 'multi_tool', 'merge', 'convert_to_pdf',
+        'images_to_pdf', 'pdf_to_images', 'pdf_to_text', 'form', 'sign_draw',
+        'annotate', 'table', 'copy_image', 'viewmode', 'compare_docs',
+        'search_docs', 'summary', 'pdf_info', 'pipeline',
+    }
     assert all(entry.category in {group.key for group in CATEGORIES} for entry in ENTRIES)
     assert all(key in BY_KEY for key in RECOMMENDED)
 
@@ -67,7 +72,7 @@ def test_catalog_covers_all_transforms_once_and_valid_categories():
     ('도장', {'stamp'}), ('watermark', {'watermark_text', 'watermark_png'}),
     ('워터마크', {'watermark_text', 'watermark_png'}),
     ('표 서식', {'auto_forms', 'form'}), ('OCR', {'searchable', 'ocr_redact', 'safe_submission'}),
-    ('분할', {'split_ranges', 'split_groups', 'split_toc', 'split_spread', 'slice_a4'}),
+    ('분할', {'split_ranges', 'split_groups', 'split_toc', 'split_spread', 'slice_a4', 'split_size'}),
     ('ＣＡＤ', {'dxf'}), ('PAGE impossibleterm', set()),
 ])
 def test_search_uses_korean_task_aliases_and_normalizes(query, expected):

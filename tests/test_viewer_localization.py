@@ -50,7 +50,7 @@ def test_translated_viewer_preserves_fit_zoom_and_page_controls(tmp_path, monkey
         assert viewer.canvas.pixmap() is not None and not viewer.canvas.pixmap().isNull()
         viewer.next.click()
         assert viewer.page.value() == 2 and viewer.zoom.currentText() == fit_text
-        viewer.zoom.setCurrentIndex(3)
+        viewer.zoom.setCurrentText('100%')
         viewer.render()
         assert viewer.zoom.currentText() == '100%'
         assert viewer.canvas.pixmap().width() == 595

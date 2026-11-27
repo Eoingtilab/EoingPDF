@@ -27,7 +27,7 @@ _ALIASES = {'erase': 'eraser', 'paste': 'copy', 'shape': 'rectangle',
             'ghost': 'pen', 'presentation': 'play', 'slideshow': 'play',
             'lock': 'security', 'repair': 'restore', 'compress': 'optimize',
             'revert': 'reset', 'fill': 'color', 'font': 'text'}
-_CATEGORY_ICONS = {'edit': 'stamp', 'pages': 'pages', 'scan': 'scan',
+_CATEGORY_ICONS = {'edit': 'stamp', 'pages': 'pages', 'convert': 'export', 'scan': 'scan',
                    'security': 'security', 'view': 'presenter',
                    'export': 'export', 'optimize': 'optimize'}
 _TOOL_ICONS = {
@@ -35,15 +35,25 @@ _TOOL_ICONS = {
     'auto_forms': 'form', 'watermark_text': 'watermark', 'watermark_png': 'image',
     'replace_image': 'image', 'bates': 'list', 'reverse': 'pages',
     'remove_blank': 'delete', 'trim': 'fit', 'split_spread': 'pages',
-    'split_ranges': 'pages', 'split_groups': 'pages', 'split_toc': 'list',
+    'split_ranges': 'pages', 'split_groups': 'pages', 'split_size': 'pages', 'split_toc': 'list',
     'stitch': 'pages', 'slice_a4': 'pages', 'deskew': 'scan',
     'deskew_bw': 'scan', 'searchable': 'search', 'safe_submission': 'security',
     'ocr_redact': 'security', 'encrypt': 'security', 'decrypt': 'unlock',
+    'permissions': 'security', 'unlock_forms': 'unlock', 'attachments': 'open',
+    'bookmarks': 'list', 'qr_stamp': 'stamp', 'sanitize_scripts': 'clear',
     'redact': 'security', 'metadata': 'clear', 'smart_dark': 'presenter',
     'print_light': 'print', 'flatten': 'image', 'four_up': 'thumbnail',
     'booklet': 'pages', 'outlines': 'text', 'markdown': 'export',
     'dxf': 'export', 'svg': 'export', 'target_size': 'optimize', 'repair': 'restore',
     'table': 'table', 'copy_image': 'copy', 'viewmode': 'thumbnail',
+    'rotate': 'update', 'auto_rotate': 'update', 'page_numbers': 'list',
+    'scale_pages': 'fit', 'insert_blank': 'pages', 'overlay_pdf': 'pages',
+    'extract_images': 'image', 'pdf_to_html': 'export', 'pdf_to_json': 'export',
+    'pdf_to_xml': 'export', 'pdf_to_pdfa': 'save', 'save_as': 'save',
+    'multi_tool': 'thumbnail', 'merge': 'pages', 'convert_to_pdf': 'export',
+    'images_to_pdf': 'image', 'pdf_to_images': 'image', 'pdf_to_text': 'text',
+    'sign_draw': 'pen', 'annotate': 'pen', 'compare_docs': 'search',
+    'search_docs': 'search', 'summary': 'list', 'pdf_info': 'history', 'pipeline': 'tools',
 }
 
 

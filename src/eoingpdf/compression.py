@@ -50,7 +50,7 @@ def resize_opaque_images(document, dpi, quality, cancelled):
             document[page_number].replace_image(xref, stream=stream.getvalue())
 
 
-def compress(document, target, target_mb, cancelled=lambda: False, progress=lambda value: None):
+def compress(document, target, target_mb, cancelled=lambda: False, progress=lambda value: None, allow_best_effort=False):
     if not isinstance(target_mb, (int, float)) or isinstance(target_mb, bool) or not math.isfinite(target_mb) or not .05 <= target_mb <= 2000:
         raise ValueError(tr('목표 용량은 0.05MB부터 2000MB 사이로 입력해 주세요.'))
     limit = int(target_mb * 1024 * 1024)
@@ -64,13 +64,14 @@ def compress(document, target, target_mb, cancelled=lambda: False, progress=lamb
         original_size = baseline.stat().st_size
         if original_size <= limit:
             shutil.copyfile(baseline, target)
-            return {'bytes': original_size, 'dpi': None, 'quality': None, 'trials': 0}
+            return {'bytes': original_size, 'dpi': None, 'quality': None, 'trials': 0, 'target_met': True}
         ladder = [(300, 90), (240, 85), (180, 80), (150, 70), (120, 60), (96, 50), (72, 40)]
         estimate = 300 * math.sqrt(limit / original_size)
         start = min(range(len(ladder)), key=lambda index: abs(ladder[index][0] - estimate))
         visited = set()
         best = None
         smallest = original_size
+        smallest_result = (baseline, original_size, None, None)
         index = start
         while 0 <= index < len(ladder) and index not in visited:
             if cancelled():
@@ -85,7 +86,9 @@ def compress(document, target, target_mb, cancelled=lambda: False, progress=lamb
                                      lossy=True, lossless=True, bitonal=False, color=True, gray=True)
                 trial.save(candidate, garbage=4, deflate=True)
             size = candidate.stat().st_size
-            smallest = min(smallest, size)
+            if size < smallest:
+                smallest = size
+                smallest_result = (candidate, size, dpi, quality)
             progress(int(len(visited) / len(ladder) * 90))
             if size <= limit:
                 best = candidate, size, dpi, quality
@@ -94,8 +97,11 @@ def compress(document, target, target_mb, cancelled=lambda: False, progress=lamb
                 break
             else:
                 index += 1
+        target_met = best is not None
         if best is None:
-            raise ValueError(tr('목표 용량에 도달하지 못했습니다. 측정한 최소 용량은 {v0:.2f}MB입니다. 목표를 늘려 주세요.', v0=smallest / 1048576))
+            if not allow_best_effort:
+                raise ValueError(tr('목표 용량에 도달하지 못했습니다. 측정한 최소 용량은 {v0:.2f}MB입니다. 목표를 늘려 주세요.', v0=smallest / 1048576))
+            best = smallest_result
         if cancelled():
             raise Cancelled(tr('작업을 취소했습니다.'))
         candidate, size, dpi, quality = best
@@ -103,4 +109,4 @@ def compress(document, target, target_mb, cancelled=lambda: False, progress=lamb
             if len(verification) != len(document):
                 raise ValueError(tr('압축 결과의 페이지 수 검증에 실패했습니다.'))
         shutil.copyfile(candidate, target)
-        return {'bytes': size, 'dpi': dpi, 'quality': quality, 'trials': len(visited)}
+        return {'bytes': size, 'dpi': dpi, 'quality': quality, 'trials': len(visited), 'target_met': target_met}

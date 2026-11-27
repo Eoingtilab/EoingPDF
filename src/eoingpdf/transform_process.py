@@ -128,8 +128,19 @@ def child_main():
         cancel_path = Path(options.pop('cancel_path'))
         target = str(options['target'])
         with redirect_stdout(sys.stderr):
-            changed = transform(**options, cancelled=cancel_path.exists,
-                                progress=lambda value: send({'type': 'progress', 'value': value}))
+            if options.get('operation') == 'pipeline':
+                from .pipeline import run_pipeline
+                changed = run_pipeline(
+                    options['source'],
+                    target,
+                    options.get('steps', []),
+                    password=options.get('password', ''),
+                    cancelled=cancel_path.exists,
+                    progress=lambda value, _msg='': send({'type': 'progress', 'value': value}),
+                )
+            else:
+                changed = transform(**options, cancelled=cancel_path.exists,
+                                    progress=lambda value: send({'type': 'progress', 'value': value}))
         options.clear()
         message = tr('결과 파일을 저장했습니다.')
         if changed:

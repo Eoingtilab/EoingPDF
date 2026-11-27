@@ -364,13 +364,116 @@ def start_updates(app, window):
 
 
 def show_update_status(parent):
-    from PySide6.QtWidgets import QApplication, QMessageBox
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import (
+        QApplication, QDialog, QHBoxLayout, QLabel, QMessageBox,
+        QProgressBar, QPushButton, QVBoxLayout,
+    )
     from .package_context import store_managed_updates
     if store_managed_updates():
         QMessageBox.information(parent, tr('자동 업데이트'), tr('Microsoft Store 설치판은 Microsoft Store가 업데이트를 관리합니다.'))
         return
+
     updater = getattr(QApplication.instance(), 'updater', None)
-    if updater:
-        updater.check()
-        explanation = tr('프로그램 실행 시 새 버전을 자동으로 내려받아 설치합니다.\n저장하지 않은 편집이나 진행 중인 작업이 있으면 적용을 기다립니다.')
-        QMessageBox.information(parent, tr('자동 업데이트'), explanation + '\n\n' + updater.message)
+    dialog = QDialog(parent)
+    dialog.setWindowTitle(tr('자동 업데이트'))
+    dialog.setMinimumWidth(420)
+    layout = QVBoxLayout(dialog)
+    layout.setContentsMargins(18, 18, 18, 18)
+    layout.setSpacing(10)
+
+    current = current_version()
+    intro = QLabel(tr('프로그램 실행 시 새 버전을 자동으로 내려받아 설치합니다.\n저장하지 않은 편집이나 진행 중인 작업이 있으면 적용을 기다립니다.'))
+    intro.setWordWrap(True)
+    layout.addWidget(intro)
+
+    version_label = QLabel(tr('현재 설치 버전: {version}', version=current))
+    layout.addWidget(version_label)
+
+    status_label = QLabel(tr('자동 업데이트를 확인하고 있습니다.'))
+    status_label.setWordWrap(True)
+    layout.addWidget(status_label)
+
+    progress = QProgressBar()
+    progress.setRange(0, 0)
+    progress.setMaximumHeight(6)
+    layout.addWidget(progress)
+
+    buttons = QHBoxLayout()
+    recheck_btn = QPushButton(tr('다시 확인'))
+    install_btn = QPushButton(tr('지금 설치 후 재시작'))
+    install_btn.setObjectName('primary')
+    install_btn.hide()
+    close_btn = QPushButton(tr('닫기'))
+    buttons.addWidget(recheck_btn)
+    buttons.addStretch(1)
+    buttons.addWidget(install_btn)
+    buttons.addWidget(close_btn)
+    layout.addLayout(buttons)
+
+    standalone_state = {'running': False, 'message': '', 'latest': current}
+
+    def run_standalone_check():
+        if standalone_state['running']:
+            return
+        standalone_state['running'] = True
+        standalone_state['message'] = tr('자동 업데이트를 확인하고 있습니다.')
+        def worker():
+            try:
+                info = update_info(current)
+                if info:
+                    standalone_state['latest'] = info['version']
+                    standalone_state['message'] = tr('새 버전 {version}이 출시되었습니다. 공식 설치 환경에서 자동 업데이트됩니다.', version=info['version'])
+                else:
+                    standalone_state['latest'] = current
+                    standalone_state['message'] = tr('현재 버전보다 새로운 업데이트가 없습니다.')
+            except LicenseError as error:
+                standalone_state['message'] = str(error)
+            except Exception:
+                standalone_state['message'] = tr('업데이트 정보를 확인하거나 설치 파일을 검증하지 못했습니다. 다음 실행 때 다시 확인합니다.')
+            finally:
+                standalone_state['running'] = False
+        threading.Thread(target=worker, daemon=True).start()
+
+    def refresh_ui():
+        if updater is not None:
+            latest = getattr(updater, 'latest_version', None) or current
+            version_label.setText(tr('현재 설치 버전: {current} · 서버 최신 버전: {latest}', current=current, latest=latest))
+            status_label.setText(updater.message)
+            running = bool(updater.running)
+            progress.setRange(0, 0 if running else 100)
+            if not running:
+                progress.setValue(100)
+            recheck_btn.setEnabled(not running)
+            install_btn.setVisible(bool(updater.pending and getattr(sys, 'frozen', False)))
+        else:
+            version_label.setText(tr('현재 설치 버전: {current} · 서버 최신 버전: {latest}', current=current, latest=standalone_state['latest']))
+            status_label.setText(standalone_state['message'])
+            running = standalone_state['running']
+            progress.setRange(0, 0 if running else 100)
+            if not running:
+                progress.setValue(100)
+            recheck_btn.setEnabled(not running)
+
+    def trigger_recheck():
+        if updater is not None:
+            if not updater.running and not updater.pending:
+                updater.check()
+        else:
+            run_standalone_check()
+        refresh_ui()
+
+    def trigger_install_now():
+        if updater is not None and updater.pending:
+            dialog.accept()
+            updater.poll()
+
+    recheck_btn.clicked.connect(trigger_recheck)
+    install_btn.clicked.connect(trigger_install_now)
+    close_btn.clicked.connect(dialog.accept)
+
+    poll_timer = QTimer(dialog)
+    poll_timer.timeout.connect(refresh_ui)
+    poll_timer.start(200)
+    trigger_recheck()
+    dialog.exec()

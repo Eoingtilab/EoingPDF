@@ -12,7 +12,8 @@ from .core import IMAGES, Cancelled, open_pdf
 
 OFFICE = {'.doc', '.docx', '.rtf', '.xls', '.xlsx', '.xlsm', '.ppt', '.pptx', '.pptm', '.hwp', '.hwpx'}
 TEXT = {'.txt', '.csv', '.md'}
-SUPPORTED = IMAGES | OFFICE | TEXT | {'.pdf'}
+WEB = {'.html', '.htm'}
+SUPPORTED = IMAGES | OFFICE | TEXT | WEB | {'.pdf'}
 ROOT = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parents[2]))
 
 
@@ -85,6 +86,9 @@ def _convert_to_pdf(source, target, cancelled=lambda: False, timeout=90):
     if ext == '.pdf':
         with open_pdf(source) as doc:
             doc.save(target, garbage=4, deflate=True)
+    elif ext in WEB:
+        from .extra_tools import html_to_pdf
+        html_to_pdf(source, target, cancelled)
     elif ext in TEXT:
         text_pdf(read_text(source), target, cancelled)
     elif ext in IMAGES:

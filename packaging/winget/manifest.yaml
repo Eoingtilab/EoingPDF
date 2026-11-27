@@ -1,15 +1,15 @@
 # 어잉PDF winget 제출용 템플릿
 # 실제 제출 전에 InstallerUrl과 InstallerSha256을 릴리스 파일에 맞춰 갱신합니다.
 PackageIdentifier: Eoingtilab.EoingPDF
-PackageVersion: 2.2.0
+PackageVersion: 2.5.0
 PackageLocale: ko-KR
 Publisher: Eoingtilab
 PublisherUrl: https://app.nal.la/
 PackageName: 어잉PDF
 PackageUrl: https://github.com/Eoingtilab/EoingPDF
-License: Freeware
-ShortDescription: 빠르고 가벼운 PDF 보기, 병합, 변환 유틸리티
-Description: 우클릭으로 PDF 병합·변환·요약을 실행하고, 페이지 미리보기와 삭제를 제공하는 Windows PDF 유틸리티입니다.
+License: AGPL-3.0
+ShortDescription: 빠르고 가벼운 로컬 PDF 워크벤치·편집·변환·발표 유틸리티
+Description: 내 PC에서 안전하게 PDF 보기, 병합, 분할, 53+ 도구, 서명·직인, 슬라이드쇼 판서, 파이프라인 자동화를 처리하는 Windows PDF 워크벤치입니다.
 Tags:
   - pdf
   - document
@@ -19,11 +19,11 @@ ManifestType: defaultLocale
 ManifestVersion: 1.6.0
 ---
 PackageIdentifier: Eoingtilab.EoingPDF
-PackageVersion: 2.2.0
+PackageVersion: 2.5.0
 InstallerType: exe
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/Eoingtilab/EoingPDF/releases/download/v2.2.0/EoingPDF-2.2.0-Setup-x64.exe
+    InstallerUrl: https://github.com/Eoingtilab/EoingPDF/releases/download/v2.5.0/EoingPDF-2.5.0-Setup-x64.exe
     InstallerSha256: REPLACE_WITH_64_HEX_SHA256
     InstallerSwitches:
       Silent: /VERYSILENT /SUPPRESSMSGBOXES /NORESTART

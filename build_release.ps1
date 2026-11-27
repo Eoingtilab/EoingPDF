@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 $version = (Get-Content VERSION -Raw).Trim()
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'VERSION 형식을 확인해 주세요.' }
@@ -111,8 +111,12 @@ catch {
     if (Test-Path $previousFolder) { Move-Item -LiteralPath $previousFolder -Destination $releaseFolder }
     throw
 }
-$iscc = Join-Path $PSScriptRoot 'build\tools\InnoSetup\ISCC.exe'
-if (-not (Test-Path $iscc)) { throw 'Inno Setup 컴파일러가 없습니다. build/tools/InnoSetup/ISCC.exe를 준비해 주세요.' }
+$iscc = @(
+    (Join-Path $PSScriptRoot 'build\tools\InnoSetup\ISCC.exe'),
+    (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'),
+    (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe')
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $iscc) { throw 'Inno Setup 컴파일러가 없습니다. build/tools/InnoSetup/ISCC.exe 또는 Inno Setup 6을 준비해 주세요.' }
 & $iscc /Qp (Join-Path $PSScriptRoot 'packaging\setup.iss')
 if ($LASTEXITCODE -ne 0) { throw '설치파일 컴파일 실패' }
 $installerPath = Join-Path $PSScriptRoot "release\EoingPDF-$version-Setup-x64.exe"

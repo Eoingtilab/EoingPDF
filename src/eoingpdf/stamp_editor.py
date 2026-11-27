@@ -169,6 +169,7 @@ class StampEditor:
         row.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(controls)
         for label, callback, icon in ((tr('이미지 추가'), self.choose_image, 'image'),
+                                      (tr('서명 그리기'), self.choose_drawn, 'pen'),
                                       (tr('도장 보관함'), self.choose_vault, 'vault')):
             button = QPushButton(label)
             set_action_icon(button, icon)
@@ -196,6 +197,15 @@ class StampEditor:
         if name:
             try:
                 self.add_image(name)
+            except Exception as error:
+                QMessageBox.warning(self.viewer, tr('직인 이미지 열기 실패'), str(error))
+
+    def choose_drawn(self):
+        from .workbench_dialogs import SignDrawDialog
+        dialog = SignDrawDialog(self.viewer)
+        if dialog.exec() == QDialog.Accepted and dialog.result_png_path is not None:
+            try:
+                self.add_image(dialog.result_png_path)
             except Exception as error:
                 QMessageBox.warning(self.viewer, tr('직인 이미지 열기 실패'), str(error))
 

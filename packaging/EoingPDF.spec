@@ -16,7 +16,16 @@ a = Analysis(
     [str(root / 'main.py')], pathex=[str(root / 'src')],
     binaries=ssl_binaries, datas=[(str(root / 'assets'), 'assets')] + extra_data + ssl_data + collect_data_files('onnxruntime')
         + copy_metadata('onnxruntime') + copy_metadata('tokenizers'),
-    hiddenimports=['win32timezone'],
+    hiddenimports=[
+        'win32timezone',
+        'eoingpdf.qr_code',
+        'eoingpdf.extra_tools',
+        'eoingpdf.pipeline',
+        'eoingpdf.workbench_dialogs',
+        'eoingpdf.multi_tool_ui',
+        'eoingpdf.library_panel',
+        'eoingpdf.inline_tools',
+    ],
     excludes=['PySide6.QtQml', 'PySide6.QtQuick', 'PySide6.QtWebEngineCore', 'tkinter', 'matplotlib'],
 )
 # Qt expects the Windows ICU API. A similarly named third-party ICU on PATH

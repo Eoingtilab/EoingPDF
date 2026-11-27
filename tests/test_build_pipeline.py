@@ -19,10 +19,11 @@ def test_release_pipeline_contains_all_distribution_gates():
 
 def test_winget_submission_template_is_present_and_explicitly_unfinalized():
     root = Path(__file__).resolve().parents[1]
+    version = (root / 'VERSION').read_text(encoding='utf-8').strip()
     manifest = root / 'packaging' / 'winget' / 'manifest.yaml'
     text = manifest.read_text(encoding='utf-8')
     for required in ('PackageIdentifier: Eoingtilab.EoingPDF',
-                     'PackageVersion: 2.2.0',
+                     f'PackageVersion: {version}',
                      'InstallerType: exe',
                      'InstallerUrl:',
                      'InstallerSha256: REPLACE_WITH_64_HEX_SHA256'):

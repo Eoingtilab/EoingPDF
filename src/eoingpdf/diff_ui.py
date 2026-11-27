@@ -4,7 +4,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QImage, QPainter, QColor
 from PySide6.QtWidgets import (QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-                              QFileDialog, QComboBox, QSlider, QSpinBox, QScrollArea, QLineEdit)
+                              QFileDialog, QComboBox, QSlider, QSpinBox, QScrollArea, QLineEdit, QPlainTextEdit, QStackedWidget)
 from .core import open_pdf
 
 
@@ -64,7 +64,7 @@ class DiffDialog(QDialog):
         row.addWidget(QLabel(tr('페이지')))
         row.addWidget(self.page)
         self.mode = QComboBox()
-        self.mode.addItems([tr('차이 강조'), tr('좌우 비교 슬라이더'), tr('겹쳐 보기')])
+        self.mode.addItems([tr('차이 강조'), tr('좌우 비교 슬라이더'), tr('겹쳐 보기'), tr('텍스트 비교')])
         row.addWidget(self.mode)
         close = QPushButton(tr('닫기'))
         close.clicked.connect(self.close)
@@ -90,7 +90,12 @@ class DiffDialog(QDialog):
         self.scroll.setAlignment(Qt.AlignCenter)
         self.canvas = DiffCanvas()
         self.scroll.setWidget(self.canvas)
-        layout.addWidget(self.scroll, 1)
+        self.text_diff = QPlainTextEdit()
+        self.text_diff.setReadOnly(True)
+        self.view_stack = QStackedWidget()
+        self.view_stack.addWidget(self.scroll)
+        self.view_stack.addWidget(self.text_diff)
+        layout.addWidget(self.view_stack, 1)
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setRange(0, 100)
         self.slider.setValue(50)
@@ -148,6 +153,15 @@ class DiffDialog(QDialog):
         if not all(self.paths):
             return
         try:
+            if self.mode.currentIndex() == 3:
+                from .visual_diff import compare_text
+                text_res = compare_text(*self.paths,
+                                        before_password=self.password_fields[0].text(),
+                                        after_password=self.password_fields[1].text())
+                self.text_diff.setPlainText(text_res['text'])
+                self.status.setText(tr('전체 {total}페이지 중 텍스트 변경 {changed}페이지',
+                                       total=text_res['total_pages'], changed=text_res['changed_pages']))
+                return
             from .visual_diff import compare
             result = compare(*self.paths, page_index=self.page.value() - 1,
                              before_password=self.password_fields[0].text(), after_password=self.password_fields[1].text())
@@ -160,10 +174,17 @@ class DiffDialog(QDialog):
             self.status.setText(tr('비교하지 못했습니다: {v0}', v0=error))
 
     def display_mode(self):
-        self.canvas.mode = self.mode.currentIndex()
+        idx = self.mode.currentIndex()
+        is_text = idx == 3
+        self.view_stack.setCurrentIndex(1 if is_text else 0)
+        self.page.setEnabled(not is_text)
+        self.canvas.mode = idx
         self.canvas.amount = self.slider.value()
-        self.slider.setEnabled(self.canvas.mode != 0)
-        self.canvas.update()
+        self.slider.setEnabled((not is_text) and self.canvas.mode != 0)
+        if is_text and all(self.paths):
+            self.refresh()
+        else:
+            self.canvas.update()
 
 
 def show_diff(parent):

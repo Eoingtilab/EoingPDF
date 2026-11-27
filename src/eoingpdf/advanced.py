@@ -45,6 +45,24 @@ TOOLS = {
     'bates': ('연속 식별번호·목차', '통일된 번호를 붙이고 클릭 가능한 목차 표지를 만듭니다. 기존 번호 가리기는 화면상의 흰 덮개이며 정보 삭제가 아닙니다.'),
     'stamp': ('도장·서명 찍기', '이미지의 흰 배경을 제거하고 지정한 페이지에 찍습니다. 300DPI 합치기를 선택하면 전체 PDF가 이미지로 바뀌어 검색·양식 입력이 사라집니다. 전자서명 인증 기능은 아닙니다.'),
     'replace_image': ('로고·이미지 일괄 교체', '선택한 이미지와 픽셀이 같은 이미지를 문서 전체에서 교체합니다. 위치와 회전은 유지하고 새 이미지는 비율을 유지해 맞춥니다. 벡터 로고·인라인 이미지는 제외합니다.'),
+    'rotate': ('페이지 회전', '지정한 페이지를 90°, 180°, 270° 회전합니다.'),
+    'auto_rotate': ('자동 방향 교정', '텍스트 방향을 분석해 돌아간 페이지를 자동으로 바로 세웁니다.'),
+    'page_numbers': ('페이지 번호 넣기', '페이지 상단 또는 하단에 일련번호를 추가합니다.'),
+    'scale_pages': ('페이지 크기 맞춤', '모든 페이지를 A4, A3, Letter, B5 등 표준 규격으로 맞춥니다.'),
+    'insert_blank': ('빈 페이지 삽입', '지정한 위치에 빈 페이지를 추가합니다.'),
+    'overlay_pdf': ('PDF 겹쳐 넣기', '배경이나 편지지·양식 PDF를 페이지 위나 아래에 겹칩니다.'),
+    'split_size': ('용량 기준 분할', '지정한 MB 이하 크기가 되도록 PDF를 여러 파일로 나누어 ZIP 저장합니다.'),
+    'extract_images': ('포함 이미지 추출', 'PDF 안에 들어있는 원본 이미지들을 추출해 ZIP으로 저장합니다.'),
+    'pdf_to_html': ('HTML 내보내기', 'PDF 텍스트와 구성을 웹 페이지(HTML) 파일로 추출합니다.'),
+    'pdf_to_json': ('JSON 내보내기', '페이지 텍스트, 크기, 목차, 메타데이터를 JSON으로 추출합니다.'),
+    'pdf_to_xml': ('XML 내보내기', '문서 구조와 텍스트를 XML 파일로 추출합니다.'),
+    'pdf_to_pdfa': ('보관용 PDF/A 저장', '폰트 정리와 활성 스크립트 제거로 장기 보관용 사본을 만듭니다.'),
+    'permissions': ('문서 권한 변경', '인쇄, 복사, 수정, 주석 허용 권한을 세부 설정해 암호화합니다.'),
+    'unlock_forms': ('양식 잠금 해제', '읽기 전용으로 잠긴 PDF 입력 칸을 다시 편집할 수 있게 풉니다.'),
+    'attachments': ('첨부 파일 관리', 'PDF 내 첨부 파일을 ZIP으로 꺼내거나 추가·삭제합니다.'),
+    'bookmarks': ('목차·책갈피 편집', '문서 목차를 직접 편집하거나 제목 글자 크기로 자동 생성합니다.'),
+    'qr_stamp': ('QR 코드 스탬프', 'URL이나 안내 문구를 담은 QR 코드를 오프라인에서 생성해 찍습니다.'),
+    'sanitize_scripts': ('활성 콘텐츠·스크립트 소독', 'PDF 내부의 JavaScript, 자동 실행 액션, 첨부 파일을 제거합니다.'),
 }
 
 
@@ -97,21 +115,40 @@ def transform(source, target, operation, password='', user_password='', owner_pa
               allow_print=True, allow_copy=False, cancelled=lambda: False, progress=lambda value: None,
               watermark_text='', watermark_image='', watermark_opacity=.2, split_ranges='', group_size=1, target_mb=10,
               form_values=None, bates_prefix='', bates_start=1, bates_digits=6, bates_hide_old=True, bates_cover=False,
-              stamp_pages='1', stamp_x_mm=10, stamp_y_mm=10, stamp_width_mm=30, stamp_flatten=True, replace_xref=0, replace_digest='', form_review=None):
+              stamp_pages='1', stamp_x_mm=10, stamp_y_mm=10, stamp_width_mm=30, stamp_flatten=True, replace_xref=0, replace_digest='', form_review=None,
+              custom_terms='', redact_boxes=None, allow_best_effort=False, rotation=90, page_range='',
+              number_position='bottom-center', number_start=1, paper_size='A4', insert_after=1, insert_count=1,
+              overlay_path='', overlay_password='', overlay_foreground=True, max_mb=5.0,
+              allow_edit=False, allow_annotate=False, attachment_mode='extract', attachment_path='',
+              toc_text='', auto_toc=False, qr_text=''):
     if operation not in TOOLS and operation != 'fill_forms':
         raise ValueError(tr('지원하지 않는 PDF 도구입니다.'))
     source, target = Path(source).resolve(), Path(target).resolve()
     if target == source or target.exists():
         raise ValueError(tr('원본이나 기존 파일을 덮어쓸 수 없습니다. 새 파일명을 선택해 주세요.'))
-    split_operation = operation in {'split_ranges', 'split_groups', 'split_toc'}
-    archive_operation = split_operation or operation in {'svg', 'dxf'}
-    extension = '.zip' if archive_operation else '.md' if operation == 'markdown' else '.pdf'
+    split_operation = operation in {'split_ranges', 'split_groups', 'split_toc', 'split_size'}
+    archive_operation = split_operation or operation in {'svg', 'dxf', 'extract_images'} or (operation == 'attachments' and attachment_mode == 'extract')
+    extension = (
+        '.zip' if archive_operation
+        else '.md' if operation == 'markdown'
+        else '.html' if operation == 'pdf_to_html'
+        else '.json' if operation == 'pdf_to_json'
+        else '.xml' if operation == 'pdf_to_xml'
+        else '.pdf'
+    )
     if target.suffix.lower() != extension:
         raise ValueError(tr('저장 파일의 확장자는 {v0}여야 합니다.', v0=extension))
     if operation == 'encrypt':
         if not user_password or not owner_password:
             raise ValueError(tr('열기 암호와 소유자 암호를 모두 입력해 주세요.'))
         if user_password == owner_password:
+            raise ValueError(tr('열기 암호와 소유자 암호를 다르게 설정해 주세요.'))
+        if any(len(value.encode('utf-8')) > 40 for value in (user_password, owner_password)):
+            raise ValueError(tr('암호는 UTF-8 기준 40바이트 이하로 입력해 주세요.'))
+    elif operation == 'permissions':
+        if not owner_password:
+            raise ValueError(tr('권한 변경에는 소유자 암호가 필요합니다.'))
+        if user_password and user_password == owner_password:
             raise ValueError(tr('열기 암호와 소유자 암호를 다르게 설정해 주세요.'))
         if any(len(value.encode('utf-8')) > 40 for value in (user_password, owner_password)):
             raise ValueError(tr('암호는 UTF-8 기준 40바이트 이하로 입력해 주세요.'))
@@ -136,12 +173,18 @@ def transform(source, target, operation, password='', user_password='', owner_pa
                 if stamp_flatten:
                     from .scan_pdf import render_copy
                     render_copy(doc, scratch, 'flatten', cancelled, lambda value: progress(45 + value // 2))
+            elif operation == 'qr_stamp':
+                from .extra_tools import add_qr_stamp
+                changed = add_qr_stamp(doc, qr_text, stamp_pages, stamp_x_mm, stamp_y_mm, stamp_width_mm, cancelled, progress)
             elif operation == 'bates':
                 from .bates import apply
                 changed = apply(doc, bates_prefix, bates_start, bates_digits, bates_hide_old, bates_cover, cancelled, progress)
             elif operation == 'fill_forms':
                 from .forms import fill_fields
                 changed = fill_fields(doc, form_values, cancelled, progress)
+            elif operation == 'unlock_forms':
+                from .extra_tools import unlock_forms
+                changed = unlock_forms(doc, cancelled, progress)
             elif operation == 'outlines':
                 from .text_outlines import export
                 changed = export(doc, scratch, cancelled, progress)
@@ -154,6 +197,45 @@ def transform(source, target, operation, password='', user_password='', owner_pa
             elif operation == 'stitch':
                 from .roll_layout import stitch
                 changed = stitch(doc, scratch, cancelled, progress)
+            elif operation == 'scale_pages':
+                from .extra_tools import scale_pages
+                changed = scale_pages(doc, scratch, paper_size, cancelled, progress)
+            elif operation == 'insert_blank':
+                from .extra_tools import insert_blank_pages
+                changed = insert_blank_pages(doc, insert_after, insert_count, paper_size, cancelled, progress)
+            elif operation == 'overlay_pdf':
+                from .extra_tools import overlay_pdf
+                changed = overlay_pdf(doc, overlay_path, overlay_password, overlay_foreground, cancelled, progress)
+            elif operation == 'rotate':
+                from .extra_tools import rotate_pages
+                changed = rotate_pages(doc, rotation, page_range, cancelled, progress)
+            elif operation == 'auto_rotate':
+                from .extra_tools import auto_rotate_pages
+                changed = auto_rotate_pages(doc, cancelled, progress)
+            elif operation == 'page_numbers':
+                from .extra_tools import add_page_numbers
+                changed = add_page_numbers(doc, page_range, number_start, number_position, cancelled, progress)
+            elif operation == 'bookmarks':
+                from .extra_tools import edit_bookmarks
+                changed = edit_bookmarks(doc, toc_text, auto_toc, cancelled, progress)
+            elif operation == 'attachments':
+                from .extra_tools import manage_attachments
+                changed = manage_attachments(doc, scratch, attachment_mode, attachment_path, cancelled, progress)
+            elif operation == 'extract_images':
+                from .extra_tools import extract_images_zip
+                changed = extract_images_zip(doc, scratch, cancelled, progress)
+            elif operation == 'pdf_to_html':
+                from .extra_tools import pdf_to_html
+                changed = pdf_to_html(doc, scratch, source.name, cancelled, progress)
+            elif operation == 'pdf_to_json':
+                from .extra_tools import pdf_to_json
+                changed = pdf_to_json(doc, scratch, source.name, cancelled, progress)
+            elif operation == 'pdf_to_xml':
+                from .extra_tools import pdf_to_xml
+                changed = pdf_to_xml(doc, scratch, source.name, cancelled, progress)
+            elif operation == 'pdf_to_pdfa':
+                from .extra_tools import convert_to_pdfa
+                changed = convert_to_pdfa(doc, scratch, cancelled, progress)
             elif operation == 'dxf':
                 from .dxf_export import export
                 changed = export(doc, scratch, cancelled, progress)
@@ -171,8 +253,11 @@ def transform(source, target, operation, password='', user_password='', owner_pa
                 changed = rebuild(doc, scratch, cancelled, progress)
             elif operation == 'target_size':
                 from .compression import compress
-                compress(doc, scratch, target_mb, cancelled, progress)
+                compress(doc, scratch, target_mb, cancelled, progress, allow_best_effort=allow_best_effort)
                 changed = len(doc)
+            elif operation == 'split_size':
+                from .extra_tools import split_by_size_zip
+                changed = split_by_size_zip(doc, scratch, max_mb, cancelled, progress)
             elif split_operation:
                 from .splitter import write_archive
                 changed = write_archive(doc, scratch, operation, split_ranges, group_size, cancelled, progress)
@@ -188,6 +273,9 @@ def transform(source, target, operation, password='', user_password='', owner_pa
             elif operation in {'flatten', 'deskew', 'deskew_bw', 'smart_dark', 'print_light'}:
                 from .scan_pdf import render_copy
                 changed = render_copy(doc, scratch, operation, cancelled, progress)
+            elif operation == 'sanitize_scripts':
+                from .sanitize import sanitize_active_content
+                changed = sanitize_active_content(doc, remove_scripts=True, remove_attachments=True, cancelled=cancelled, progress=progress)
             elif operation == 'split_spread':
                 if cancelled():
                     raise Cancelled(tr('작업을 취소했습니다.'))
@@ -216,6 +304,11 @@ def transform(source, target, operation, password='', user_password='', owner_pa
                     out.save(scratch, garbage=4, deflate=True)
                     changed = len(out)
             elif operation in {'remove_blank', 'trim', 'redact', 'searchable', 'ocr_redact'}:
+                terms = [term.strip() for term in re.split(r'[,\n]+', custom_terms or '') if term.strip()]
+                boxes_by_page = {}
+                for box_item in redact_boxes or ():
+                    if isinstance(box_item, dict) and isinstance(box_item.get('page'), int) and len(box_item.get('rect', ())) == 4:
+                        boxes_by_page.setdefault(box_item['page'], []).append(box_item['rect'])
                 for index, page in enumerate(doc):
                     if cancelled():
                         raise Cancelled(tr('작업을 취소했습니다.'))
@@ -230,6 +323,10 @@ def transform(source, target, operation, password='', user_password='', owner_pa
                         rectangles = set()
                         for match in sensitive_matches(page.get_text()):
                             rectangles.update(tuple(rect) for rect in page.search_for(match))
+                        for term in terms:
+                            rectangles.update(tuple(rect) for rect in page.search_for(term))
+                        for box in boxes_by_page.get(index, ()):
+                            rectangles.add(tuple(float(v) for v in box))
                         for rect in rectangles:
                             page.add_redact_annot(pdf.Rect(rect), fill=(0, 0, 0))
                         if rectangles:
@@ -262,14 +359,26 @@ def transform(source, target, operation, password='', user_password='', owner_pa
                     sanitize(doc, cancelled, progress)
             if cancelled():
                 raise Cancelled(tr('작업을 취소했습니다.'))
-            if not (operation == 'stamp' and stamp_flatten) and not archive_operation and operation not in {'safe_submission', 'split_spread', 'flatten', 'deskew', 'deskew_bw', 'smart_dark', 'print_light', 'target_size', 'repair', 'markdown', 'four_up', 'booklet', 'stitch', 'slice_a4', 'outlines'}:
+            self_saved = {
+                'safe_submission', 'split_spread', 'flatten', 'deskew', 'deskew_bw',
+                'smart_dark', 'print_light', 'target_size', 'repair', 'markdown',
+                'four_up', 'booklet', 'stitch', 'slice_a4', 'outlines', 'scale_pages',
+                'pdf_to_html', 'pdf_to_json', 'pdf_to_xml', 'pdf_to_pdfa',
+                'extract_images', 'split_size',
+            }
+            if not (operation == 'stamp' and stamp_flatten) and not archive_operation and operation not in self_saved:
                 options = {'garbage': 4, 'deflate': True, 'encryption': pdf.PDF_ENCRYPT_NONE}
-                if operation == 'encrypt':
+                if operation in {'encrypt', 'permissions'}:
                     permissions = pdf.PDF_PERM_ACCESSIBILITY
                     if allow_print:
                         permissions |= pdf.PDF_PERM_PRINT | pdf.PDF_PERM_PRINT_HQ
                     if allow_copy:
                         permissions |= pdf.PDF_PERM_COPY
+                    if operation == 'permissions':
+                        if allow_edit:
+                            permissions |= pdf.PDF_PERM_MODIFY
+                        if allow_annotate:
+                            permissions |= pdf.PDF_PERM_ANNOTATE
                     options.update(encryption=pdf.PDF_ENCRYPT_AES_256, owner_pw=owner_password,
                                    user_pw=user_password, permissions=permissions)
                 doc.save(scratch, **options)
@@ -277,8 +386,8 @@ def transform(source, target, operation, password='', user_password='', owner_pa
             with zipfile.ZipFile(scratch) as archive:
                 if archive.testzip() is not None:
                     raise ValueError(tr('분할 파일 검증에 실패했습니다.'))
-        elif operation != 'markdown':
-            with open_pdf(scratch, user_password if operation == 'encrypt' else ''):
+        elif operation not in {'markdown', 'pdf_to_html', 'pdf_to_json', 'pdf_to_xml'}:
+            with open_pdf(scratch, user_password if operation in {'encrypt', 'permissions'} and user_password else ''):
                 pass
         if cancelled():
             raise Cancelled(tr('작업을 취소했습니다.'))

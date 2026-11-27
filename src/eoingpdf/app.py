@@ -656,6 +656,7 @@ def main():
     parser.add_argument('files', nargs='*')
     parser.add_argument('--screenshot')
     parser.add_argument('--dock', action='store_true', help='Open the floating file collection dock')
+    parser.add_argument('--classic', action='store_true', help='Open the classic task launcher window')
     parser.add_argument('--skip-update-once', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
     app = QApplication(sys.argv[:1])
@@ -696,17 +697,17 @@ def main():
         from .staging_dock import StagingDock
         window = StagingDock()
         window.add_files(args.files)
-    elif len(args.files) == 1 and Path(args.files[0]).suffix.lower() == '.pdf':
+    elif args.classic:
+        window = Window()
+    else:
         from .viewer import PdfViewer, PdfOpenCancelled
         try:
-            window = PdfViewer(args.files[0])
+            window = PdfViewer(paths=args.files)
         except PdfOpenCancelled:
             return
         except Exception as error:
             QMessageBox.warning(None, tr('PDF 열기 실패'), str(error))
             return
-    else:
-        window = Window()
     window.show()
     from .updates import start_updates
     start_updates(app, window)

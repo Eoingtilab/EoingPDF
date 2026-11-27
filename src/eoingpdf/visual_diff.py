@@ -48,3 +48,30 @@ def compare(before, after, page_index=0, max_side=1600, threshold=20, before_pas
         highlight[changed & new_ink & ~old_ink] = (20, 150, 95)
         highlight[changed & old_ink & new_ink] = (125, 65, 195)
         return Difference(old, new, highlight, int(changed.sum()), pages[0] is None, pages[1] is None)
+
+
+def compare_text(before, after, before_password='', after_password=''):
+    """Return page-by-page unified text diff summary between two PDF files."""
+    import difflib
+    sections = []
+    changed_pages = 0
+    with open_pdf(before, before_password) as left, open_pdf(after, after_password) as right:
+        total = max(len(left), len(right))
+        for index in range(total):
+            old_lines = left[index].get_text('text').splitlines() if index < len(left) else []
+            new_lines = right[index].get_text('text').splitlines() if index < len(right) else []
+            diff = list(difflib.unified_diff(
+                old_lines,
+                new_lines,
+                fromfile=tr('원본 {page}p', page=index + 1),
+                tofile=tr('수정본 {page}p', page=index + 1),
+                lineterm='',
+            ))
+            if diff:
+                changed_pages += 1
+                sections.append(f'=== {tr("{page}페이지", page=index + 1)} ===\n' + '\n'.join(diff))
+    return {
+        'changed_pages': changed_pages,
+        'total_pages': total,
+        'text': '\n\n'.join(sections) if sections else tr('모든 페이지의 추출 텍스트가 동일합니다.'),
+    }
