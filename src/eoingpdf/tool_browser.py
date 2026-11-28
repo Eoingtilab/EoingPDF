@@ -17,15 +17,18 @@ class ToolDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index):
         panel = QStyleOptionViewItem(option)
         self.initStyleOption(panel, index)
-        width = max(120, self.parent().viewport().width() - 56)
+        parent = self.parent()
+        viewport = parent.viewport() if parent is not None and hasattr(parent, 'viewport') else None
+        vp_width = viewport.width() if viewport is not None and viewport.width() > 0 else 240
+        width = max(120, vp_width - 68)
         font = QFont(panel.font)
         font.setBold(True)
         from PySide6.QtGui import QFontMetrics
         title = QFontMetrics(font).boundingRect(QRect(0, 0, width, 10000),
-            Qt.TextWordWrap, index.data(Qt.UserRole + 1))
+            Qt.TextWordWrap, str(index.data(Qt.UserRole + 1) or ''))
         description = QFontMetrics(panel.font).boundingRect(QRect(0, 0, width, 10000),
-            Qt.TextWordWrap, index.data(Qt.UserRole + 2))
-        return QSize(width + 56, max(68, title.height() + description.height() + 24))
+            Qt.TextWordWrap, str(index.data(Qt.UserRole + 2) or ''))
+        return QSize(max(100, vp_width - 10), max(68, title.height() + description.height() + 28))
 
     def paint(self, painter, option, index):
         panel = QStyleOptionViewItem(option)

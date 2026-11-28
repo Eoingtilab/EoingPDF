@@ -358,3 +358,34 @@ def test_update_banner_confirm_defer_and_updated_to(monkeypatch):
             app.updater.timer.stop()
         host.close()
         host.deleteLater()
+
+
+def test_right_tools_dock_no_horizontal_scrollbar_or_oscillation(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QStyleOptionViewItem
+    monkeypatch.setattr('eoingpdf.sniffer_ui.MicroSniffer.start', lambda *args, **kwargs: None)
+    sample = tmp_path / 'sample.pdf'
+    _make_pdf(sample, ['Page 1'])
+    viewer = PdfViewer(sample)
+    try:
+        viewer.resize(1100, 760)
+        viewer.show()
+        QApplication.processEvents()
+        dock = viewer.workspace_header.editing_panel
+        tool_list = dock.tool_list
+        assert tool_list.horizontalScrollBarPolicy() == Qt.ScrollBarAlwaysOff
+        assert not tool_list.horizontalScrollBar().isVisible()
+
+        for width in (264, 296, 264):
+            dock.set_panel_width(width)
+            QApplication.processEvents()
+            assert not tool_list.horizontalScrollBar().isVisible()
+            delegate = tool_list.itemDelegate()
+            opt = QStyleOptionViewItem()
+            for row in range(min(8, tool_list.count())):
+                hint = delegate.sizeHint(opt, tool_list.model().index(row, 0))
+                assert hint.width() <= tool_list.viewport().width()
+                assert hint.height() >= 68
+    finally:
+        viewer.dirty = False
+        viewer.close()
+        viewer.deleteLater()

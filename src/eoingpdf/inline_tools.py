@@ -6,8 +6,8 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGridLayout, QHBoxLayout,
-    QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+    QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGridLayout, QHBoxLayout,
+    QInputDialog, QLabel, QLineEdit, QListView, QListWidget, QListWidgetItem,
     QPlainTextEdit, QProgressBar, QPushButton, QScrollArea, QSpinBox,
     QStackedWidget, QTabWidget, QVBoxLayout, QWidget,
 )
@@ -659,9 +659,12 @@ class RightToolsDock(QScrollArea):
         self.tool_list.setObjectName('stirlingToolCatalog')
         self.tool_list.setMinimumWidth(0)
         self.tool_list.setMinimumHeight(240)
-        self.tool_list.setSpacing(3)
+        self.tool_list.setSpacing(0)
         self.tool_list.setWordWrap(True)
         self.tool_list.setUniformItemSizes(False)
+        self.tool_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.tool_list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.tool_list.setResizeMode(QListView.Adjust)
         self.tool_list.setItemDelegate(ToolDelegate(self.tool_list))
         self.tool_list.itemClicked.connect(lambda item: self.activate_tool(item.data(Qt.UserRole)))
         cat_layout.addWidget(self.tool_list, 1)
@@ -740,11 +743,16 @@ class RightToolsDock(QScrollArea):
         self.refresh_catalog()
 
     def set_panel_width(self, width: int):
+        changed = False
         if self.width() != width:
             self.setFixedWidth(width)
-        inner = max(220, width - 14)
+            changed = True
+        inner = max(220, width - 16)
         if self._container.maximumWidth() != inner:
             self._container.setMaximumWidth(inner)
+            changed = True
+        if changed and hasattr(self, 'tool_list'):
+            self.tool_list.doItemsLayout()
 
     def refresh_catalog(self):
         query = self.search_input.text()
